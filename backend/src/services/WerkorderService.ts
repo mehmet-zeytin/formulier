@@ -2,6 +2,7 @@ import { WerkorderRepository } from '../repositories/WerkorderRepository';
 import { MateriaalRepository } from '../repositories/MateriaalRepository';
 import { FotoRepository } from '../repositories/FotoRepository';
 import { Werkorder, Materiaal, Foto } from '../models/Werkorder';
+import { EmailService } from './EmailService';
 
 interface WerkorderInput {
   werkorder: Werkorder;
@@ -12,6 +13,7 @@ export class WerkorderService {
   private werkorderRepo = new WerkorderRepository();
   private materiaalRepo = new MateriaalRepository();
   private fotoRepo = new FotoRepository();
+  private emailService = new EmailService();
 
   async createWerkorder(input: WerkorderInput): Promise<number> {
     // İş kuralı: status alanı boş olamaz
@@ -30,6 +32,9 @@ export class WerkorderService {
       });
     }
 
+    await this.emailService.sendWerkorderNotification(input.werkorder, input.materialen);
+
+    return werkorderId;
     return werkorderId;
   }
 

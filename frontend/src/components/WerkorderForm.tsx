@@ -23,7 +23,7 @@ export default function WerkorderForm() {
   const [klantMaterialen, setKlantMaterialen] = useState<Materiaal[]>([{ tip: 'klant', naam: '', aantal: 0 }]);
   const [bedrijfMaterialen, setBedrijfMaterialen] = useState<Materiaal[]>([{ tip: 'bedrijf', naam: '', aantal: 0 }]);
   const [verkoopMaterialen, setVerkoopMaterialen] = useState<Materiaal[]>([{ tip: 'verkoop', naam: '', aantal: 0 }]);
-  const [fotos, setFotos] = useState<FotoItem[]>([]);
+  const [fotos, setFotos] = useState<FotoItem[]>([{ beschrijving: '', file: null, previewUrl: '' }]);
 
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -75,7 +75,7 @@ export default function WerkorderForm() {
       setKlantMaterialen([{ tip: 'klant', naam: '', aantal: 0 }]);
       setBedrijfMaterialen([{ tip: 'bedrijf', naam: '', aantal: 0 }]);
       setVerkoopMaterialen([{ tip: 'verkoop', naam: '', aantal: 0 }]);
-      setFotos([]);
+      setFotos([{ beschrijving: '', file: null, previewUrl: '' }]);
     } catch (error: any) {
       setErrorMessage(error.response?.data?.message || 'Bir hata oluştu');
     } finally {
