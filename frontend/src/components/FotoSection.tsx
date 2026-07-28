@@ -1,0 +1,96 @@
+export interface FotoItem {
+  beschrijving: string;
+  file: File | null;
+  previewUrl: string;
+}
+
+interface FotoSectionProps {
+  fotos: FotoItem[];
+  onChange: (fotos: FotoItem[]) => void;
+}
+
+export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
+
+  const addEmptyRow = () => {
+    onChange([...fotos, { beschrijving: '', file: null, previewUrl: '' }]);
+  };
+
+  const updateBeschrijving = (index: number, value: string) => {
+    const updated = [...fotos];
+    updated[index] = { ...updated[index], beschrijving: value };
+    onChange(updated);
+  };
+
+  const updateFile = (index: number, file: File) => {
+    const updated = [...fotos];
+    const previewUrl = URL.createObjectURL(file);
+    updated[index] = { ...updated[index], file, previewUrl };
+    onChange(updated);
+  };
+
+  const removeFoto = (index: number) => {
+    onChange(fotos.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="mb-6">
+      <h3 className="text-base font-semibold text-gray-900 mb-3">Foto's en Beschrijvingen</h3>
+
+      {fotos.map((foto, index) => (
+        <div key={index} className="border border-gray-200 rounded p-3 mb-3">
+          <label className="block text-sm text-gray-700 mb-1">Beschrijving</label>
+          <input
+            type="text"
+            placeholder="Beschrijving (bijv. WAN, Modem)"
+            value={foto.beschrijving}
+            onChange={(e) => updateBeschrijving(index, e.target.value)}
+            className="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3"
+          />
+
+          {foto.previewUrl && (
+            <img src={foto.previewUrl} alt="Voorbeeld" className="w-20 h-20 object-cover rounded mb-3" />
+          )}
+
+          <div className="flex gap-2">
+            <label className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm text-gray-500 cursor-pointer bg-white truncate">
+              {foto.file ? foto.file.name : 'Dosya seçilmedi'}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => e.target.files && updateFile(index, e.target.files[0])}
+                className="hidden"
+              />
+            </label>
+
+            <label className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded cursor-pointer whitespace-nowrap">
+              Neem Foto
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => e.target.files && updateFile(index, e.target.files[0])}
+                className="hidden"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => removeFoto(index)}
+              className="text-gray-400 hover:text-red-600 px-2"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={addEmptyRow}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded"
+      >
+        Foto toevoegen
+      </button>
+    </div>
+  );
+}
