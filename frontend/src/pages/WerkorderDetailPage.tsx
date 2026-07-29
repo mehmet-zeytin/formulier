@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getWerkorderDetail } from '../services/werkorderService';
+import { getWerkorderDetail, deleteFoto } from '../services/werkorderService';
 
 interface Materiaal {
   id: number;
@@ -59,6 +59,21 @@ export default function WerkorderDetailPage() {
 
     fetchDetail();
   }, [id, navigate]);
+
+  const handleDeleteFoto = async (fotoId: number) => {
+    if (!detail) return;
+    if (!window.confirm('Bu fotoğrafı silmek istediğinize emin misiniz?')) return;
+
+    try {
+      await deleteFoto(detail.id, fotoId);
+      setDetail({
+        ...detail,
+        fotos: detail.fotos.filter((f) => f.id !== fotoId),
+      });
+    } catch (err) {
+      alert('Foto silinirken bir hata oluştu');
+    }
+  };
 
   if (loading) return <div className="p-8 text-center text-gray-500">Laden...</div>;
   if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
@@ -123,12 +138,20 @@ export default function WerkorderDetailPage() {
             <h3 className="font-semibold text-gray-800 mb-3">Foto's en Beschrijvingen</h3>
             <div className="grid grid-cols-2 gap-4">
               {detail.fotos.map((foto) => (
-                <div key={foto.id}>
+                <div key={foto.id} className="relative">
                   <img
                     src={`http://localhost:3000${foto.bestandspad}`}
                     alt={foto.beschrijving}
                     className="w-full h-40 object-cover rounded"
                   />
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteFoto(foto.id)}
+                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow"
+                    title="Foto verwijderen"
+                  >
+                    ✕
+                  </button>
                   {foto.beschrijving && (
                     <p className="text-sm text-gray-600 mt-1">{foto.beschrijving}</p>
                   )}

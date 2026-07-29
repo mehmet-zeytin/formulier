@@ -28,8 +28,10 @@ export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
     onChange(updated);
   };
 
-  const removeFoto = (index: number) => {
-    onChange(fotos.filter((_, i) => i !== index));
+  const clearFile = (index: number) => {
+    const updated = [...fotos];
+    updated[index] = { ...updated[index], file: null, previewUrl: '' };
+    onChange(updated);
   };
 
   return (
@@ -48,7 +50,17 @@ export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
           />
 
           {foto.previewUrl && (
-            <img src={foto.previewUrl} alt="Voorbeeld" className="w-20 h-20 object-cover rounded mb-3" />
+            <div className="relative inline-block mb-3">
+              <img src={foto.previewUrl} alt="Voorbeeld" className="w-20 h-20 object-cover rounded" />
+              <button
+                type="button"
+                onClick={() => clearFile(index)}
+                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow"
+                title="Foto verwijderen"
+              >
+                ✕
+              </button>
+            </div>
           )}
 
           <div className="flex gap-2">
@@ -72,14 +84,6 @@ export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
                 className="hidden"
               />
             </label>
-
-            <button
-              type="button"
-              onClick={() => removeFoto(index)}
-              className="text-gray-400 hover:text-red-600 px-2"
-            >
-              ✕
-            </button>
           </div>
         </div>
       ))}

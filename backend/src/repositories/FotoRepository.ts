@@ -20,4 +20,16 @@ export class FotoRepository {
     );
     return rows as Foto[];
   }
+
+  async findById(id: number): Promise<Foto | null> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT * FROM fotos WHERE id = ?`,
+      [id]
+    );
+    return rows.length > 0 ? (rows[0] as Foto) : null;
+  }
+
+  async delete(id: number): Promise<void> {
+    await pool.query(`DELETE FROM fotos WHERE id = ?`, [id]);
+  }
 }

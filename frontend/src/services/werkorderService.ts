@@ -31,3 +31,8 @@ export const getWerkorderDetail = async (id: number) => {
   const response = await api.get(`/werkorders/${id}`);
   return response.data;
 };
+
+export const deleteFoto = async (werkorderId: number, fotoId: number) => {
+  const response = await api.delete(`/werkorders/${werkorderId}/fotos/${fotoId}`);
+  return response.data;
+};
