@@ -1,6 +1,8 @@
 import nodemailer from 'nodemailer';
 import type { Werkorder, Materiaal } from '../models/Werkorder';
 
+type MateriaalInput = Omit<Materiaal, 'werkorder_id'>;
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT),
@@ -13,7 +15,7 @@ const transporter = nodemailer.createTransport({
 
 export class EmailService {
 
-  async sendWerkorderNotification(werkorder: Werkorder, materialen: Materiaal[]): Promise<void> {
+  async sendWerkorderNotification(werkorder: Werkorder, materialen: MateriaalInput[]): Promise<void> {
     const materialenHtml = materialen.length > 0
       ? materialen.map(m => `<li>${m.naam} — ${m.aantal} ${m.eenheid || ''} (${m.tip})</li>`).join('')
       : '<li>Geen materialen ingevuld</li>';

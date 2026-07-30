@@ -20,6 +20,11 @@ export class WerkorderService {
     if (!input.werkorder.status) {
       throw new Error('Status alanı zorunludur');
     }
+    for (const materiaal of input.materialen) {
+      if (materiaal.aantal < 0) {
+        throw new Error(`Materiaal miktarı negatif olamaz: ${materiaal.naam}`);
+      }
+    }
 
     // 1. Önce ana werkorder kaydını oluştur, id'sini al
     const werkorderId = await this.werkorderRepo.create(input.werkorder);

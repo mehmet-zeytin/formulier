@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 export interface FotoItem {
   beschrijving: string;
   file: File | null;
@@ -10,6 +12,7 @@ interface FotoSectionProps {
 }
 
 export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
+  const [enlargedUrl, setEnlargedUrl] = useState<string | null>(null);
 
   const addEmptyRow = () => {
     onChange([...fotos, { beschrijving: '', file: null, previewUrl: '' }]);
@@ -51,7 +54,12 @@ export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
 
           {foto.previewUrl && (
             <div className="relative inline-block mb-3">
-              <img src={foto.previewUrl} alt="Voorbeeld" className="w-20 h-20 object-cover rounded" />
+              <img
+                src={foto.previewUrl}
+                alt="Voorbeeld"
+                onClick={() => setEnlargedUrl(foto.previewUrl)}
+                className="w-20 h-20 object-cover rounded cursor-pointer hover:opacity-90 transition"
+              />
               <button
                 type="button"
                 onClick={() => clearFile(index)}
@@ -95,6 +103,29 @@ export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
       >
         Foto toevoegen
       </button>
+
+      {enlargedUrl && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setEnlargedUrl(null)}
+        >
+          <div className="relative max-w-3xl w-full">
+            <img
+              src={enlargedUrl}
+              alt="Vergroot"
+              className="w-full max-h-[80vh] object-contain rounded"
+            />
+            <button
+              type="button"
+              onClick={() => setEnlargedUrl(null)}
+              className="absolute -top-10 right-0 text-white text-2xl hover:text-gray-300"
+              title="Sluiten"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

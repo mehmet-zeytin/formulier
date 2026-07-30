@@ -40,6 +40,7 @@ export default function WerkorderDetailPage() {
   const [detail, setDetail] = useState<WerkorderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedFoto, setSelectedFoto] = useState<Foto | null>(null);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -142,7 +143,8 @@ export default function WerkorderDetailPage() {
                   <img
                     src={`http://localhost:3000${foto.bestandspad}`}
                     alt={foto.beschrijving}
-                    className="w-full h-40 object-cover rounded"
+                    onClick={() => setSelectedFoto(foto)}
+                    className="w-full h-40 object-cover rounded cursor-pointer hover:opacity-90 transition"
                   />
                   <button
                     type="button"
@@ -161,6 +163,32 @@ export default function WerkorderDetailPage() {
           </div>
         )}
       </div>
+
+      {selectedFoto && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedFoto(null)}
+        >
+          <div className="relative max-w-3xl w-full">
+            <img
+              src={`http://localhost:3000${selectedFoto.bestandspad}`}
+              alt={selectedFoto.beschrijving}
+              className="w-full max-h-[80vh] object-contain rounded"
+            />
+            {selectedFoto.beschrijving && (
+              <p className="text-white text-center mt-3">{selectedFoto.beschrijving}</p>
+            )}
+            <button
+              type="button"
+              onClick={() => setSelectedFoto(null)}
+              className="absolute -top-10 right-0 text-white text-2xl hover:text-gray-300"
+              title="Sluiten"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
