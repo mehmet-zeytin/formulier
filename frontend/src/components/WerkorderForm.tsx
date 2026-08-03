@@ -39,7 +39,7 @@ export default function WerkorderForm() {
     setSuccessMessage('');
 
     if (!werkorder.status) {
-      setErrorMessage('Status alanı zorunludur');
+      setErrorMessage('Statusveld is verplicht');
       return;
     }
 
@@ -62,7 +62,7 @@ export default function WerkorderForm() {
         }
       }
 
-      setSuccessMessage(`Werkorder başarıyla gönderildi (ID: ${newWerkorderId})`);
+      setSuccessMessage(`Werkorder succesvol verzonden (ID: ${newWerkorderId})`);
 
       setWerkorder({
         werkorder_id: generateWerkorderId(),
@@ -77,7 +77,7 @@ export default function WerkorderForm() {
       setVerkoopMaterialen([{ tip: 'verkoop', naam: '', aantal: 0 }]);
       setFotos([{ beschrijving: '', file: null, previewUrl: '' }]);
     } catch (error: any) {
-      setErrorMessage(error.response?.data?.message || 'Bir hata oluştu');
+      setErrorMessage(error.response?.data?.message || 'Er is een fout opgetreden');
     } finally {
       setLoading(false);
     }
@@ -197,7 +197,7 @@ export default function WerkorderForm() {
           disabled={loading}
           className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-3 rounded"
         >
-          {loading ? 'Gönderiliyor...' : 'Formulier verzenden'}
+          {loading ? 'Bezig met verzenden...' : 'Formulier verzenden'}
         </button>
 
       </form>
