@@ -39,7 +39,7 @@ export class EmailService {
         html,
       });
     } catch (error) {
-      console.error('E-posta gönderilemedi:', error);
+      console.error('E-mail kan niet worden verzonden:', error);
     }
   }
 }
