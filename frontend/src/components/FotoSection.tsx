@@ -39,7 +39,7 @@ export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
 
   return (
     <div className="mb-6">
-      <h3 className="text-base font-semibold text-gray-900 mb-3">Foto's en Beschrijvingen</h3>
+      <h3 className="text-base font-semibold text-gray-900 mb-3">Foto's en beschrijvingen</h3>
 
       {fotos.map((foto, index) => (
         <div key={index} className="border border-gray-200 rounded p-3 mb-3">
@@ -73,7 +73,7 @@ export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
 
           <div className="flex gap-2">
             <label className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm text-gray-500 cursor-pointer bg-white truncate">
-              {foto.file ? foto.file.name : 'Dosya seçilmedi'}
+              {foto.file ? foto.file.name : 'Geen bestand geselecteerd'}
               <input
                 type="file"
                 accept="image/*"
@@ -83,7 +83,7 @@ export default function FotoSection({ fotos, onChange }: FotoSectionProps) {
             </label>
 
             <label className="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded cursor-pointer whitespace-nowrap">
-              Neem Foto
+              Foto maken
               <input
                 type="file"
                 accept="image/*"
