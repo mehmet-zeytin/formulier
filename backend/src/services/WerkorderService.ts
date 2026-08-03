@@ -16,20 +16,20 @@ export class WerkorderService {
   private emailService = new EmailService();
 
   async createWerkorder(input: WerkorderInput): Promise<number> {
-    // İş kuralı: status alanı boş olamaz
+    // Bedrijfsregel: het statusveld mag niet leeg zijn
     if (!input.werkorder.status) {
-      throw new Error('Status alanı zorunludur');
+      throw new Error('Statusveld is verplicht');
     }
     for (const materiaal of input.materialen) {
       if (materiaal.aantal < 0) {
-        throw new Error(`Materiaal miktarı negatif olamaz: ${materiaal.naam}`);
+        throw new Error(`Materiaalhoeveelheid kan niet negatief zijn: ${materiaal.naam}`);
       }
     }
 
-    // 1. Önce ana werkorder kaydını oluştur, id'sini al
+    // 1. Maak eerst de hoofdwerkorder aan en haal het ID op
     const werkorderId = await this.werkorderRepo.create(input.werkorder);
 
-    // 2. Gelen her materyali, bu werkorder id'sine bağlayarak kaydet
+    // 2. Sla elk meegeleverd materiaal op door het te koppelen aan dit werkorder-ID
     for (const materiaal of input.materialen) {
       await this.materiaalRepo.create({
         ...materiaal,
@@ -40,7 +40,6 @@ export class WerkorderService {
     await this.emailService.sendWerkorderNotification(input.werkorder, input.materialen);
 
     return werkorderId;
-    return werkorderId;
   }
 
   async getAllWerkorders(): Promise<Werkorder[]> {
@@ -50,7 +49,7 @@ export class WerkorderService {
   async getWerkorderDetail(id: number) {
     const werkorder = await this.werkorderRepo.findById(id);
     if (!werkorder) {
-      throw new Error('Werkorder bulunamadı');
+      throw new Error('Werkorder niet gevonden');
     }
     const materialen = await this.materiaalRepo.findByWerkorderId(id);
     const fotos = await this.fotoRepo.findByWerkorderId(id);
