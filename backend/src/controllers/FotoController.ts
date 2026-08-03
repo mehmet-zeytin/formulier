@@ -12,7 +12,7 @@ export class FotoController {
       const { beschrijving } = req.body;
 
       if (!req.file) {
-        res.status(400).json({ message: 'Foto dosyası gerekli' });
+        res.status(400).json({ message: 'Fotobestand is vereist' });
         return;
       }
 
@@ -24,7 +24,7 @@ export class FotoController {
         bestandspad
       });
 
-      res.status(201).json({ message: 'Foto başarıyla yüklendi', id: fotoId, pad: bestandspad });
+      res.status(201).json({ message: 'Foto succesvol geüpload', id: fotoId, pad: bestandspad });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
@@ -36,20 +36,20 @@ export class FotoController {
 
       const foto = await this.fotoRepo.findById(fotoId);
       if (!foto) {
-        res.status(404).json({ message: 'Foto bulunamadı' });
+        res.status(404).json({ message: 'Foto niet gevonden' });
         return;
       }
 
-      // Diskteki gerçek dosyayı sil
+      // Verwijder het daadwerkelijke bestand van de schijf
       const filePath = path.join(__dirname, '../..', foto.bestandspad);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
 
-      // Veritabanı kaydını sil
+      // Verwijder de database record
       await this.fotoRepo.delete(fotoId);
 
-      res.status(200).json({ message: 'Foto başarıyla silindi' });
+      res.status(200).json({ message: 'Foto succesvol verwijderd' });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
