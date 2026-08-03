@@ -1,4 +1,4 @@
--- Kullanıcılar tablosu (login için - admin panel'e girecek kişiler)
+-- Gebruikers tabel (voor login - personen die het adminpaneel betreden)
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
@@ -6,7 +6,7 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Ana iş emri tablosu
+-- Hoofdwerkordertabel
 CREATE TABLE werkorders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     werkorder_id VARCHAR(100) NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE werkorders (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Materyaller tablosu (3 bölümün hepsi burada, tip sütunuyla ayrılıyor)
+-- Materialentabel (alle 3 secties bevinden zich hier, gescheiden door de type-kolom)
 CREATE TABLE materialen (
     id INT AUTO_INCREMENT PRIMARY KEY,
     werkorder_id INT NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE materialen (
     FOREIGN KEY (werkorder_id) REFERENCES werkorders(id) ON DELETE CASCADE
 );
 
--- Fotoğraflar tablosu
+-- Fototabel
 CREATE TABLE fotos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     werkorder_id INT NOT NULL,
@@ -38,4 +38,3 @@ CREATE TABLE fotos (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (werkorder_id) REFERENCES werkorders(id) ON DELETE CASCADE
 );
-
