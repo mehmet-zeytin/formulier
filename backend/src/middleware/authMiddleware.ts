@@ -9,7 +9,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ message: 'Token gerekli, giriş yapmalısınız' });
+    res.status(401).json({ message: 'Token is vereist, u moet inloggen' });
     return;
   }
 
@@ -20,6 +20,6 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
     req.user = decoded;
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Geçersiz veya süresi dolmuş token' });
+    res.status(401).json({ message: 'Ongeldig of verlopen token' });
   }
 };
