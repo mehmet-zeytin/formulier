@@ -12,7 +12,7 @@ async function createAdmin() {
     [email, hash]
   );
 
-  console.log('Admin kullanıcı oluşturuldu:', email);
+  console.log('Admin gebruiker aangemaakt:', email);
   process.exit(0);
 }
 
