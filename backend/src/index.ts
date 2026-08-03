@@ -24,9 +24,9 @@ app.use('/api/werkorders', werkorderRoutes);
 app.use('/api/auth', authRoutes);
 
 app.get('/', (req, res) => {
-  res.json({ message: 'Formulier API çalışıyor' });
+  res.json({ message: 'Formulier API werkt' });
 });
 
 app.listen(PORT, () => {
-  console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
+  console.log(`Server draait op http://localhost:${PORT}`);
 });
