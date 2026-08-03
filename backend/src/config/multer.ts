@@ -4,7 +4,7 @@ import fs from 'fs';
 
 const uploadDir = path.join(__dirname, '../../uploads');
 
-// uploads klasörü yoksa otomatik oluştur
+// Maak de map 'uploads' automatisch aan als deze niet bestaat
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -25,7 +25,7 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Sadece JPEG, PNG veya WEBP formatında resim yüklenebilir'));
+    cb(new Error('Alleen afbeeldingen in JPEG, PNG of WEBP formaat kunnen worden geüpload'));
   }
 };
 
