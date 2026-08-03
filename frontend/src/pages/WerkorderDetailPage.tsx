@@ -63,7 +63,7 @@ export default function WerkorderDetailPage() {
 
   const handleDeleteFoto = async (fotoId: number) => {
     if (!detail) return;
-    if (!window.confirm('Bu fotoğrafı silmek istediğinize emin misiniz?')) return;
+    if (!window.confirm('Weet u zeker dat u deze foto wilt verwijderen?')) return;
 
     try {
       await deleteFoto(detail.id, fotoId);
@@ -72,7 +72,7 @@ export default function WerkorderDetailPage() {
         fotos: detail.fotos.filter((f) => f.id !== fotoId),
       });
     } catch (err) {
-      alert('Foto silinirken bir hata oluştu');
+      alert('Er is een fout opgetreden bij het verwijderen van de foto');
     }
   };
 
@@ -136,7 +136,7 @@ export default function WerkorderDetailPage() {
 
         {detail.fotos.length > 0 && (
           <div>
-            <h3 className="font-semibold text-gray-800 mb-3">Foto's en Beschrijvingen</h3>
+            <h3 className="font-semibold text-gray-800 mb-3">Foto's en beschrijvingen</h3>
             <div className="grid grid-cols-2 gap-4">
               {detail.fotos.map((foto) => (
                 <div key={foto.id} className="relative">
