@@ -8,7 +8,7 @@ export class WerkorderController {
     try {
       const { werkorder, materialen } = req.body;
       const newId = await this.werkorderService.createWerkorder({ werkorder, materialen });
-      res.status(201).json({ message: 'Werkorder başarıyla oluşturuldu', id: newId });
+      res.status(201).json({ message: 'Werkorder succesvol aangemaakt', id: newId });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
