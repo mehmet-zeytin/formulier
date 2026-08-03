@@ -9,12 +9,12 @@ export class AuthController {
       const { email, password } = req.body;
 
       if (!email || !password) {
-        res.status(400).json({ message: 'Email ve şifre zorunludur' });
+        res.status(400).json({ message: 'E-mailadres en wachtwoord zijn verplicht' });
         return;
       }
 
       const token = await this.authService.login(email, password);
-      res.status(200).json({ message: 'Giriş başarılı', token });
+      res.status(200).json({ message: 'Inloggen gelukt', token });
     } catch (error: any) {
       res.status(401).json({ message: error.message });
     }
