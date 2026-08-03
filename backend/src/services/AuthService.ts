@@ -9,13 +9,13 @@ export class AuthService {
     const user = await this.userRepo.findByEmail(email);
 
     if (!user) {
-      throw new Error('Email veya şifre hatalı');
+      throw new Error('Onjuist e-mailadres of wachtwoord');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
-      throw new Error('Email veya şifre hatalı');
+      throw new Error('Onjuist e-mailadres of wachtwoord');
     }
 
     const token = jwt.sign(
