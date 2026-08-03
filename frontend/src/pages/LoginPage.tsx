@@ -18,7 +18,7 @@ export default function LoginPage() {
       await login(email, password);
       navigate('/admin/werkorders');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Giriş başarısız');
+      setError(err.response?.data?.message || 'Inloggen mislukt');
     } finally {
       setLoading(false);
     }
@@ -27,11 +27,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="max-w-sm w-full bg-white p-8 rounded shadow">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Admin Giriş</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Admin inloggen</h1>
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">E-mailadres</label>
             <input
               type="email"
               value={email}
@@ -42,7 +42,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Şifre</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Wachtwoord</label>
             <input
               type="password"
               value={password}
@@ -61,7 +61,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-2 rounded"
           >
-            {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+            {loading ? 'Bezig met inloggen...' : 'Inloggen'}
           </button>
         </form>
       </div>
