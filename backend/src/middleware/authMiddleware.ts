@@ -1,25 +1,106 @@
-import { Request, Response, NextFunction } from 'express';
+import {
+  NextFunction,
+  Request,
+  Response
+} from 'express';
+
 import jwt from 'jsonwebtoken';
 
-export interface AuthRequest extends Request {
-  user?: { userId: number; email: string };
+import type {
+  UserRole
+} from '../models/User';
+
+export interface AuthUser {
+  userId: number;
+  email: string;
+  role: UserRole;
 }
 
-export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  const authHeader = req.headers.authorization;
+export interface AuthRequest
+  extends Request {
+  user?: AuthUser;
+}
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ message: 'Token is vereist, u moet inloggen' });
+export const authMiddleware = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const authorization =
+    req.headers.authorization;
+
+  if (
+    !authorization ||
+    !authorization.startsWith(
+      'Bearer '
+    )
+  ) {
+    res.status(401).json({
+      message:
+        'U moet ingelogd zijn.'
+    });
+
     return;
   }
 
-  const token = authHeader.split(' ')[1];
+  const token =
+    authorization.substring(7);
+
+  const jwtSecret =
+    process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    res.status(500).json({
+      message:
+        'JWT_SECRET is niet geconfigureerd.'
+    });
+
+    return;
+  }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { userId: number; email: string };
-    req.user = decoded;
+    const decoded =
+      jwt.verify(
+        token,
+        jwtSecret
+      ) as Partial<AuthUser>;
+
+    const validRole =
+      decoded.role === 'owner' ||
+      decoded.role === 'admin' ||
+      decoded.role === 'medewerker';
+
+    if (
+      typeof decoded.userId !==
+        'number' ||
+      typeof decoded.email !==
+        'string' ||
+      !validRole
+    ) {
+      res.status(401).json({
+        message:
+          'Ongeldige sessie.'
+      });
+
+      return;
+    }
+
+    req.user = {
+      userId:
+        decoded.userId,
+
+      email:
+        decoded.email,
+
+      role:
+        decoded.role as UserRole
+    };
+
     next();
-  } catch (error) {
-    res.status(401).json({ message: 'Ongeldig of verlopen token' });
+  } catch {
+    res.status(401).json({
+      message:
+        'Uw sessie is ongeldig of verlopen.'
+    });
   }
 };

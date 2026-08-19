@@ -1,1 +1,9 @@
+node_modules/
+dist/
+
+backend/.env
+frontend/.env
+.env
+
+database-backups/
 backend/uploads/

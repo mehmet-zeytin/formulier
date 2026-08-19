@@ -1,192 +1,474 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getWerkorderDetail, deleteFoto } from '../services/werkorderService';
 
-interface Materiaal {
-  id: number;
-  tip: string;
-  naam: string;
-  aantal: number;
-  eenheid: string;
-}
+import {
+  Link,
+  useNavigate,
+  useParams
+} from 'react-router-dom';
 
-interface Foto {
-  id: number;
-  beschrijving: string;
-  bestandspad: string;
-}
+import {
+  deleteFoto,
+  getWerkorderDetail
+} from '../services/werkorderService';
 
-interface WerkorderDetail {
-  id: number;
-  werkorder_id: string;
-  aankomsttijd: string;
-  eindtijd: string;
-  datum: string;
-  uitgevoerde_werkzaamheden: string;
-  status: string;
-  materialen: Materiaal[];
-  fotos: Foto[];
-}
+import type {
+  Foto,
+  Materiaal,
+  WerkorderDetail
+} from '../types/Werkorder';
 
-const tipLabels: Record<string, string> = {
-  klant: 'Gebruikte materialen van de klant',
-  bedrijf: 'Geleverde goederen vanuit ons als bedrijf',
-  verkoop: 'Extra gebruikte materialen van ons (verkoop)',
+const tipLabels: Record<
+  Materiaal['tip'],
+  string
+> = {
+  klant:
+    'Gebruikte materialen van de klant',
+
+  bedrijf:
+    'Geleverde goederen vanuit ons als bedrijf',
+
+  verkoop:
+    'Extra gebruikte materialen van ons (verkoop)'
 };
 
 export default function WerkorderDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } =
+    useParams<{ id: string }>();
+
   const navigate = useNavigate();
-  const [detail, setDetail] = useState<WerkorderDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [selectedFoto, setSelectedFoto] = useState<Foto | null>(null);
+
+  const [detail, setDetail] =
+    useState<WerkorderDetail | null>(
+      null
+    );
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState('');
+
+  const [
+    selectedFoto,
+    setSelectedFoto
+  ] = useState<Foto | null>(null);
+
+  const [
+    deletingFotoId,
+    setDeletingFotoId
+  ] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchDetail = async () => {
       try {
-        const data = await getWerkorderDetail(Number(id));
-        setDetail(data);
-      } catch (err: any) {
-        if (err.response?.status === 401) {
-          navigate('/admin/login');
-        } else {
-          setError('Werkorder niet gevonden');
+        setError('');
+
+        const numericId =
+          Number(id);
+
+        if (
+          !Number.isInteger(
+            numericId
+          ) ||
+          numericId <= 0
+        ) {
+          setError(
+            'Ongeldig werkorder-ID.'
+          );
+          return;
         }
+
+        const data =
+          await getWerkorderDetail(
+            numericId
+          );
+
+        setDetail(data);
+      } catch (error: unknown) {
+        const status =
+          typeof error ===
+            'object' &&
+          error !== null &&
+          'response' in error
+            ? (
+                error as {
+                  response?: {
+                    status?: number;
+                  };
+                }
+              ).response?.status
+            : undefined;
+
+        if (status === 401) {
+          navigate(
+            '/login',
+            {
+              replace: true
+            }
+          );
+          return;
+        }
+
+        if (status === 403) {
+          setError(
+            'U heeft geen toegang tot deze werkorder.'
+          );
+          return;
+        }
+
+        if (status === 404) {
+          setError(
+            'Werkorder niet gevonden.'
+          );
+          return;
+        }
+
+        setError(
+          'De werkorder kon niet worden geladen.'
+        );
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDetail();
+    void fetchDetail();
   }, [id, navigate]);
 
-  const handleDeleteFoto = async (fotoId: number) => {
-    if (!detail) return;
-    if (!window.confirm('Weet u zeker dat u deze foto wilt verwijderen?')) return;
+  const handleDeleteFoto =
+    async (
+      fotoId: number
+    ) => {
+      if (!detail) {
+        return;
+      }
 
-    try {
-      await deleteFoto(detail.id, fotoId);
-      setDetail({
-        ...detail,
-        fotos: detail.fotos.filter((f) => f.id !== fotoId),
-      });
-    } catch (err) {
-      alert('Er is een fout opgetreden bij het verwijderen van de foto');
-    }
-  };
+      const confirmed =
+        window.confirm(
+          'Weet u zeker dat u deze foto wilt verwijderen?'
+        );
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Laden...</div>;
-  if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
-  if (!detail) return null;
+      if (!confirmed) {
+        return;
+      }
 
-  const materialenPerTip = (tip: string) =>
-    detail.materialen.filter((m) => m.tip === tip);
+      try {
+        setDeletingFotoId(
+          fotoId
+        );
+
+        await deleteFoto(
+          detail.id,
+          fotoId
+        );
+
+        setDetail(
+          current => {
+            if (!current) {
+              return current;
+            }
+
+            return {
+              ...current,
+              fotos:
+                current.fotos.filter(
+                  foto =>
+                    foto.id !==
+                    fotoId
+                )
+            };
+          }
+        );
+      } catch {
+        window.alert(
+          'De foto kon niet worden verwijderd.'
+        );
+      } finally {
+        setDeletingFotoId(
+          null
+        );
+      }
+    };
+
+  if (loading) {
+    return (
+      <div className="p-8 text-center text-gray-500">
+        Laden...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 text-center text-red-600">
+        {error}
+      </div>
+    );
+  }
+
+  if (!detail) {
+    return null;
+  }
+
+  const isDraft =
+    !Boolean(
+      detail.is_voltooid
+    );
+
+  const materialenPerTip = (
+    tip: Materiaal['tip']
+  ) =>
+    detail.materialen.filter(
+      materiaal =>
+        materiaal.tip === tip
+    );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
       <div className="max-w-2xl mx-auto bg-white rounded shadow p-6">
-        <Link to="/admin/werkorders" className="text-blue-600 hover:underline text-sm">
-          ← Terug naar overzicht
-        </Link>
+        <div className="flex justify-between items-start gap-4">
+          <Link
+            to="/werkorders"
+            className="text-blue-600 hover:underline text-sm"
+          >
+            ← Terug naar overzicht
+          </Link>
 
-        <h1 className="text-2xl font-bold text-gray-900 mt-4 mb-6">{detail.werkorder_id}</h1>
+          <span
+            className={`text-xs font-medium px-3 py-1 rounded-full ${
+              isDraft
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-green-100 text-green-700'
+            }`}
+          >
+            {isDraft
+              ? 'Concept'
+              : 'Afgerond'}
+          </span>
+        </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+        <h1 className="text-2xl font-bold text-gray-900 mt-4">
+          {detail.werkorder_id}
+        </h1>
+
+        {isDraft && (
+          <Link
+            to={`/werkorders/${detail.id}/edit`}
+            className="mt-5 inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded"
+          >
+            Verdergaan met concept
+          </Link>
+        )}
+
+        <div className="grid grid-cols-2 gap-4 my-6 text-sm">
           <div>
-            <span className="text-gray-500">Aankomsttijd</span>
-            <p className="font-medium">{detail.aankomsttijd}</p>
+            <span className="text-gray-500">
+              Aankomsttijd
+            </span>
+
+            <p className="font-medium">
+              {detail.aankomsttijd ??
+                '-'}
+            </p>
           </div>
+
           <div>
-            <span className="text-gray-500">Eindtijd</span>
-            <p className="font-medium">{detail.eindtijd}</p>
+            <span className="text-gray-500">
+              Eindtijd
+            </span>
+
+            <p className="font-medium">
+              {detail.eindtijd ??
+                '-'}
+            </p>
           </div>
+
           <div>
-            <span className="text-gray-500">Datum</span>
-            <p className="font-medium">{detail.datum.split('-').reverse().join('-')}</p>
+            <span className="text-gray-500">
+              Datum
+            </span>
+
+            <p className="font-medium">
+              {detail.datum
+                .split('-')
+                .reverse()
+                .join('-')}
+            </p>
           </div>
+
           <div>
-            <span className="text-gray-500">Status</span>
-            <p className="font-medium">{detail.status}</p>
+            <span className="text-gray-500">
+              Status
+            </span>
+
+            <p className="font-medium">
+              {detail.status ??
+                'Nog niet ingevuld'}
+            </p>
           </div>
         </div>
 
         <div className="mb-6">
-          <span className="text-gray-500 text-sm">Uitgevoerde werkzaamheden</span>
-          <p className="mt-1">{detail.uitgevoerde_werkzaamheden}</p>
+          <span className="text-gray-500 text-sm">
+            Uitgevoerde werkzaamheden
+          </span>
+
+          <p className="mt-1 whitespace-pre-wrap">
+            {detail
+              .uitgevoerde_werkzaamheden ??
+              'Nog niet ingevuld'}
+          </p>
         </div>
 
-        {['klant', 'bedrijf', 'verkoop'].map((tip) => {
-          const items = materialenPerTip(tip);
-          if (items.length === 0) return null;
+        {(
+          [
+            'klant',
+            'bedrijf',
+            'verkoop'
+          ] as Materiaal['tip'][]
+        ).map(tip => {
+          const items =
+            materialenPerTip(
+              tip
+            );
+
+          if (
+            items.length === 0
+          ) {
+            return null;
+          }
 
           return (
-            <div key={tip} className="mb-6">
-              <h3 className="font-semibold text-gray-800 mb-2">{tipLabels[tip]}</h3>
-              <ul className="text-sm space-y-1">
-                {items.map((m) => (
-                  <li key={m.id} className="text-gray-700">
-                    {m.naam} — {m.aantal} {m.eenheid}
-                  </li>
-                ))}
-              </ul>
+            <div
+              key={tip}
+              className="mb-6"
+            >
+              <h3 className="font-semibold mb-2">
+                {
+                  tipLabels[
+                    tip
+                  ]
+                }
+              </h3>
+
+              {items.map(
+                materiaal => (
+                  <p
+                    key={
+                      materiaal.id
+                    }
+                    className="text-sm"
+                  >
+                    {
+                      materiaal.naam
+                    }{' '}
+                    —{' '}
+                    {
+                      materiaal.aantal
+                    }{' '}
+                    {
+                      materiaal.eenheid ??
+                      ''
+                    }
+                  </p>
+                )
+              )}
             </div>
           );
         })}
 
-        {detail.fotos.length > 0 && (
-          <div>
-            <h3 className="font-semibold text-gray-800 mb-3">Foto's en beschrijvingen</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {detail.fotos.map((foto) => (
-                <div key={foto.id} className="relative">
-                  <img
-                    src={`http://localhost:3000${foto.bestandspad}`}
-                    alt={foto.beschrijving}
-                    onClick={() => setSelectedFoto(foto)}
-                    className="w-full h-40 object-cover rounded cursor-pointer hover:opacity-90 transition"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteFoto(foto.id)}
-                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow"
-                    title="Foto verwijderen"
-                  >
-                    ✕
-                  </button>
-                  {foto.beschrijving && (
-                    <p className="text-sm text-gray-600 mt-1">{foto.beschrijving}</p>
-                  )}
-                </div>
-              ))}
-            </div>
+        {detail.materialen
+          .length === 0 && (
+          <div className="mb-6">
+            <h3 className="font-semibold">
+              Materialen
+            </h3>
+
+            <p className="text-sm text-gray-500 mt-2">
+              Geen materialen geregistreerd.
+            </p>
           </div>
         )}
+
+        <div>
+          <h3 className="font-semibold mb-3">
+            Foto&apos;s en beschrijvingen
+          </h3>
+
+          {detail.fotos.length ===
+          0 ? (
+            <p className="text-sm text-gray-500">
+              Geen foto&apos;s geregistreerd.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {detail.fotos.map(
+                foto => (
+                  <div
+                    key={foto.id}
+                    className="relative"
+                  >
+                    <img
+                      src={`http://localhost:3000${foto.bestandspad}`}
+                      alt={
+                        foto.beschrijving ??
+                        'Werkorderfoto'
+                      }
+                      onClick={() =>
+                        setSelectedFoto(
+                          foto
+                        )
+                      }
+                      className="w-full h-40 object-cover rounded cursor-pointer"
+                    />
+
+                    {isDraft && (
+                      <button
+                        type="button"
+                        disabled={
+                          deletingFotoId ===
+                          foto.id
+                        }
+                        onClick={() =>
+                          void handleDeleteFoto(
+                            foto.id
+                          )
+                        }
+                        className="absolute top-2 right-2 bg-red-600 text-white rounded-full w-7 h-7"
+                      >
+                        ✕
+                      </button>
+                    )}
+
+                    {foto.beschrijving && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {
+                          foto.beschrijving
+                        }
+                      </p>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {selectedFoto && (
         <div
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedFoto(null)}
+          onClick={() =>
+            setSelectedFoto(null)
+          }
         >
-          <div className="relative max-w-3xl w-full">
-            <img
-              src={`http://localhost:3000${selectedFoto.bestandspad}`}
-              alt={selectedFoto.beschrijving}
-              className="w-full max-h-[80vh] object-contain rounded"
-            />
-            {selectedFoto.beschrijving && (
-              <p className="text-white text-center mt-3">{selectedFoto.beschrijving}</p>
-            )}
-            <button
-              type="button"
-              onClick={() => setSelectedFoto(null)}
-              className="absolute -top-10 right-0 text-white text-2xl hover:text-gray-300"
-              title="Sluiten"
-            >
-              ✕
-            </button>
-          </div>
+          <img
+            src={`http://localhost:3000${selectedFoto.bestandspad}`}
+            alt={
+              selectedFoto.beschrijving ??
+              'Werkorderfoto'
+            }
+            className="max-w-3xl max-h-[85vh] object-contain"
+          />
         </div>
       )}
     </div>

@@ -6,9 +6,52 @@ import { authMiddleware } from '../middleware/authMiddleware';
 const router = Router();
 const controller = new WerkorderController();
 
-router.post('/', controller.create);
-router.get('/', authMiddleware, controller.getAll);
-router.get('/:id', authMiddleware, controller.getById);
-router.use('/:werkorderId/fotos', fotoRoutes);
+
+router.post(
+  '/drafts',
+  authMiddleware,
+  controller.createDraft
+);
+
+router.get(
+  '/drafts',
+  authMiddleware,
+  controller.getDrafts
+);
+
+router.get(
+  '/',
+  authMiddleware,
+  controller.getAll
+);
+
+router.put(
+  '/:id/materialen',
+  authMiddleware,
+  controller.updateMaterialen
+);
+
+router.post(
+  '/:id/complete',
+  authMiddleware,
+  controller.completeDraft
+);
+
+router.patch(
+  '/:id',
+  authMiddleware,
+  controller.updateDraft
+);
+
+router.get(
+  '/:id',
+  authMiddleware,
+  controller.getById
+);
+
+router.use(
+  '/:werkorderId/fotos',
+  fotoRoutes
+);
 
 export default router;

@@ -1,8 +1,24 @@
+export type WerkorderStatus =
+  | 'Voltooid'
+  | 'Niet Voltooid'
+  | 'In Afwachting';
+
 export interface Materiaal {
+  id?: number;
+  werkorder_id?: number;
   tip: 'klant' | 'bedrijf' | 'verkoop';
   naam: string;
   aantal: number;
   eenheid?: string;
+}
+
+export interface Foto {
+  id: number;
+  werkorder_id: number;
+  beschrijving?: string | null;
+  bestandspad: string;
+  genomen_op: string;
+  created_at?: string;
 }
 
 export interface WerkorderFormData {
@@ -11,5 +27,38 @@ export interface WerkorderFormData {
   eindtijd: string;
   datum: string;
   uitgevoerde_werkzaamheden: string;
-  status: 'Voltooid' | 'Niet Voltooid' | 'In Afwachting' | '';
+  status: WerkorderStatus | '';
+}
+
+export interface Werkorder {
+  id: number;
+  werkorder_id: string;
+  aankomsttijd: string | null;
+  eindtijd: string | null;
+  datum: string;
+  uitgevoerde_werkzaamheden: string | null;
+  status: WerkorderStatus | null;
+  is_voltooid: number | boolean;
+  created_by: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WerkorderDetail extends Werkorder {
+  materialen: Materiaal[];
+  fotos: Foto[];
+}
+
+export interface CreateDraftPayload {
+  werkorder_id: string;
+  datum: string;
+}
+
+export interface UpdateDraftPayload {
+  werkorder_id?: string;
+  aankomsttijd?: string | null;
+  eindtijd?: string | null;
+  datum?: string;
+  uitgevoerde_werkzaamheden?: string | null;
+  status?: WerkorderStatus | null;
 }

@@ -6,7 +6,17 @@ import { authMiddleware } from '../middleware/authMiddleware';
 const router = Router({ mergeParams: true });
 const controller = new FotoController();
 
-router.post('/', upload.single('foto'), controller.upload);
-router.delete('/:fotoId', authMiddleware, controller.delete);
+router.post(
+  '/',
+  authMiddleware,
+  upload.single('foto'),
+  controller.upload
+);
+
+router.delete(
+  '/:fotoId',
+  authMiddleware,
+  controller.delete
+);
 
 export default router;

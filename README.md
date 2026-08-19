@@ -1,448 +1,843 @@
-# Formulier – Opleverformulier Werkorder
-## Over het project
-Formulier is een Nederlandstalige webapplicatie voor het invullen, versturen en beheren van werkorder-opleverformulieren.
+Formulier – Opleverformulier Werkorder
 
-Buitendienstmedewerkers kunnen zonder account een opleverformulier invullen en verzenden. Beheerders kunnen inloggen op het adminpaneel om alle ingediende werkorders te bekijken.
+Over het project
 
-De applicatie bestaat uit een afzonderlijke frontend, backend en MySQL-database.
+Formulier is een Nederlandstalige webapplicatie voor het invullen, opslaan, beheren en afronden van werkorders.
 
-## Functionaliteiten
-### Voor buitendienstmedewerkers
-* Werkorder-opleverformulier invullen
-* Gebruikte en geleverde materialen registreren
-* Foto’s bij een werkorder uploaden
-* Foto’s voorzien van een beschrijving
-* Formulier zonder account verzenden
+Gebruikers melden zich aan met een account. De applicatie kent drie rollen:
 
-### Voor beheerders
-* Beveiligd inloggen met e-mailadres en wachtwoord
-* Alle ingediende werkorders bekijken
-* Details van afzonderlijke werkorders bekijken
-* Geregistreerde materialen bekijken
-* Geüploade foto’s bekijken
-* Toegang tot beveiligde API-routes via een JWT-token
+owner – hoofdbeheerder
 
-## Technologieën
-### Backend
-* Node.js
-* TypeScript
-* Express
-* MySQL2
-* JSON Web Token
-* bcrypt
-* Multer
+admin – beheerder
 
-### Frontend
-* React
-* TypeScript
-* Vite
-* Tailwind CSS
-* React Router
-* Axios
+medewerker – medewerker
 
-### Database
-* MySQL 8.0
-* Docker
-* Docker Compose
+Een medewerker kan alleen zijn eigen werkorders en concepten bekijken en bewerken. Een admin en de owner kunnen alle werkorders bekijken. De owner heeft daarnaast volledige controle over admins en medewerkers.
 
-## Architectuur
-De backend maakt gebruik van een gelaagde objectgeoriënteerde architectuur:
+De applicatie bestaat uit:
 
-**Controller → Service → Repository**
+React/Vite frontend
 
-### Controllerlaag
-De controllers ontvangen HTTP-verzoeken, controleren de invoer en sturen een antwoord terug naar de frontend.
+Express/TypeScript backend
 
-### Servicelaag
-De services bevatten de bedrijfslogica van de applicatie. Deze laag verwerkt gegevens en bepaalt welke acties moeten worden uitgevoerd.
+MySQL 8.0 database
 
-### Repositorylaag
-De repositories verzorgen de communicatie met de MySQL-database. Databasequery’s worden zoveel mogelijk buiten de controllers en services gehouden.
+Functionaliteiten
 
-Deze structuur zorgt voor een duidelijke scheiding van verantwoordelijkheden en maakt het project eenvoudiger te onderhouden en uit te breiden.
+Werkorders
 
-## Projectstructuur
+Nieuwe werkorder als concept aanmaken
 
-```
-formulier/
+Concept automatisch opslaan tijdens het invullen
+
+Concept later verder bewerken
+
+Materialen registreren
+
+Eenheid per materiaal vastleggen
+
+Foto's uploaden
+
+Beschrijving bij foto's opslaan
+
+Tijdstip van selecteren/opnemen van foto's bewaren via genomen_op
+
+Werkorder definitief voltooien
+
+Voltooide werkorders beschermen tegen verdere wijzigingen
+
+Zoeken op werkorder-ID en uitgevoerde werkzaamheden
+
+Filteren op status: Alle, Concept, Voltooid, Niet Voltooid en In Afwachting
+
+Gebruikersbeheer
+
+Owner
+
+De owner kan:
+
+alle werkorders en concepten bekijken
+
+medewerkers aanmaken
+
+admins aanmaken
+
+admins en medewerkers verwijderen
+
+wachtwoorden van admins en medewerkers wijzigen
+
+medewerkers promoveren naar admin
+
+admins terugzetten naar medewerker
+
+Het owner-account zelf kan via de applicatie niet worden verwijderd en de owner-rol kan niet worden gewijzigd.
+
+Admin
+
+Een admin kan:
+
+alle werkorders en concepten bekijken
+
+medewerkers aanmaken
+
+medewerkers verwijderen
+
+wachtwoorden van medewerkers wijzigen
+
+Een admin kan niet:
+
+een nieuwe admin aanmaken
+
+de rol van een gebruiker wijzigen
+
+een andere admin beheren
+
+het owner-account beheren
+
+Medewerker
+
+Een medewerker kan:
+
+alleen eigen werkorders bekijken
+
+alleen eigen concepten bekijken
+
+eigen concepten aanmaken en bewerken
+
+eigen werkorders voltooien
+
+Een medewerker heeft geen toegang tot gebruikersbeheer.
+
+Technologieën
+
+Backend
+
+Node.js
+
+TypeScript
+
+Express
+
+MySQL2
+
+JSON Web Token
+
+bcrypt
+
+Multer
+
+Frontend
+
+React
+
+TypeScript
+
+Vite
+
+Tailwind CSS
+
+React Router
+
+Axios
+
+Database
+
+MySQL 8.0
+
+Architectuur
+
+De backend gebruikt een gelaagde architectuur:
+
+Controller → Service → Repository
+
+Controllers ontvangen HTTP-verzoeken en sturen responses terug. Services bevatten de bedrijfslogica en autorisatieregels. Repositories verzorgen de SQL-query's en communicatie met MySQL.
+
+Projectstructuur
+
+werkorder-formulier/
 ├── backend/
-│   └── Express API voor authenticatie, werkorders en foto-uploads
+│   ├── src/
+│   └── .env
 ├── frontend/
-│   └── React-formulier en adminpaneel
+│   └── src/
 ├── database/
-│   └── MySQL-schemabestand
-└── docker-compose.yml
-```
+│   └── setup.sql
+├── database-backups/
+│   └── lokale back-ups, niet committen
+├── package.json
+└── README.md
 
-## Vereisten
-Voor het uitvoeren van het project zijn de volgende programma’s nodig:
+Vereisten
 
-* Node.js versie 18 of hoger
-* npm
-* Docker Desktop
-* Docker Compose
-* Een moderne internetbrowser
+Voor lokaal gebruik zijn nodig:
 
-## Installatie
-### 1. Project downloaden
-Kloon de repository:
+Node.js 18 of hoger
 
-```
+npm
+
+MySQL 8.0
+
+Een moderne browser
+
+Windows wanneer het meegeleverde mysql:start-script wordt gebruikt
+
+De root package.json start de Windows-service MySQL80. Als MySQL onder een andere servicenaam draait, moet het script worden aangepast.
+
+Installatie vanaf GitLab
+
+1. Repository klonen
+
 git clone <project-url>
-```
+cd werkorder-formulier
 
-Ga vervolgens naar de projectmap:
+Vervang <project-url> door de GitLab-URL van het project.
 
-```
-cd formulier
-```
+2. Dependencies installeren
 
-Vervang `<project-url>` door de URL van de Git-repository.
+npm install
+npm install --prefix backend
+npm install --prefix frontend
 
-## Database starten
-Start de MySQL-container vanuit de hoofdmap van het project:
+Dit hoeft alleen opnieuw wanneer dependencies zijn gewijzigd.
 
-```
-docker compose up -d
-```
+3. MySQL voorbereiden
 
-Hiermee wordt een MySQL 8.0-container gestart.
+Controleer op Windows de servicenaam:
 
-De database is beschikbaar via:
+Get-Service *MySQL*
 
-```
-localhost:3307
-```
+In de huidige root package.json wordt uitgegaan van:
 
-Poort `3307` wordt gebruikt omdat poort `3306` op de hostmachine al in gebruik is.
+MySQL80
 
-### Databaseschema laden
-Voer in PowerShell het volgende commando uit vanuit de hoofdmap van het project:
+Als de service anders heet, pas mysql:start in de root package.json aan.
 
-```
-Get-Content database/schema.sql | docker exec -i formulier_mysql mysql -u formulier_user -pformulier_sifre_123 formulier_db
-```
+4. Database en databasegebruiker aanmaken
 
-Hiermee wordt het databaseschema uit `database/schema.sql` geïmporteerd in de MySQL-container.
+Log in als MySQL-root:
 
-### Databasecontainer controleren
-Controleer of de container actief is:
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p
 
-```
-docker ps
-```
+Voer daarna in MySQL uit:
 
-De container met de naam `formulier_mysql` moet in de lijst worden weergegeven.
+CREATE DATABASE IF NOT EXISTS werkorder_db;
 
-## Backend installeren
+CREATE USER IF NOT EXISTS 'formulier_user'@'localhost'
+IDENTIFIED BY 'KIES_HIER_EEN_STERK_WACHTWOORD';
+
+GRANT ALL PRIVILEGES
+ON werkorder_db.*
+TO 'formulier_user'@'localhost';
+
+FLUSH PRIVILEGES;
+
+Gebruik in een echte omgeving een eigen sterk wachtwoord.
+
+5. Databaseschema laden
+
+Vanuit de hoofdmap van het project:
+
+Get-Content ".\database\setup.sql" |
+  & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" `
+    -u formulier_user `
+    -p `
+    werkorder_db
+
+Voer het databasewachtwoord in wanneer MySQL daarom vraagt.
+
+6. Backend .env aanmaken
+
+Maak dit bestand:
+
+backend/.env
+
+Voorbeeld:
+
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=formulier_user
+DB_PASSWORD=KIES_HIER_HETZELFDE_DATABASEWACHTWOORD
+DB_NAME=werkorder_db
+
+JWT_SECRET=KIES_HIER_EEN_LANGE_WILLEKEURIGE_GEHEIME_SLEUTEL
+PORT=3000
+
+Belangrijk:
+
+Commit backend/.env nooit naar GitLab.
+
+Gebruik geen standaardwachtwoorden in productie.
+
+Gebruik een lange en willekeurige JWT_SECRET.
+
+Eerste owner-account aanmaken
+
+Na een volledig nieuwe database bestaat er nog geen owner-account.
+
 Ga naar de backendmap:
 
-```
 cd backend
-```
 
-Installeer de benodigde pakketten:
+Genereer een bcrypt-hash:
 
-```
-npm install
-```
+node -e "const bcrypt=require('bcrypt'); bcrypt.hash('KIES_EEN_STERK_WACHTWOORD',12).then(console.log)"
 
-### Omgevingsvariabelen instellen
-Maak in de map `backend` een bestand met de naam `.env`.
+Kopieer de volledige hash en voer daarna in MySQL uit:
 
-Voeg de volgende configuratie toe:
+USE werkorder_db;
 
-```
-DB_HOST=localhost
-DB_PORT=3307
-DB_USER=formulier_user
-DB_PASSWORD=formulier_sifre_123
-DB_NAME=formulier_db
-JWT_SECRET=schrijf-een-sterke-geheime-sleutel-op
-PORT=3000
-```
+INSERT INTO users (
+    email,
+    password_hash,
+    role
+)
+VALUES (
+    'admin@formulier.nl',
+    'PLAK_HIER_DE_BCRYPT_HASH',
+    'owner'
+);
 
-Vervang de waarde van `JWT_SECRET` door een lange en willekeurige geheime sleutel.
+Gebruik vervolgens het gekozen wachtwoord om in te loggen. Het owner-account kan daarna vanuit de applicatie admins en medewerkers aanmaken.
 
-Het `.env`-bestand mag niet aan de Git-repository worden toegevoegd.
+Applicatie starten
 
-## Eerste beheerder aanmaken
-Voer vanuit de map `backend` het volgende commando uit:
+Vanuit de hoofdmap:
 
-```
-npx ts-node src/createAdmin.ts
-```
-
-De standaard inloggegevens zijn:
-
-* E-mailadres: `admin@formulier.nl`
-* Wachtwoord: `admin123`
-
-De standaardgegevens kunnen in het bijbehorende bronbestand worden gewijzigd.
-
-Wijzig het standaardwachtwoord voordat de applicatie in een productieomgeving wordt gebruikt.
-
-## Backend starten
-Start de backend in ontwikkelmodus:
-
-```
 npm run dev
-```
 
-De API is daarna beschikbaar via:
+Het root-script doet achtereenvolgens:
 
-```
-http://localhost:3000
-```
+MySQL80 starten indien nodig
+↓
+backend starten
+↓
+frontend starten
 
-## Frontend installeren
-Open een nieuwe terminal en ga vanuit de hoofdmap naar de frontendmap:
+Daarna zijn beschikbaar:
 
-```
-cd frontend
-```
+Frontend: http://localhost:5173
+Backend:  http://localhost:3000
 
-Installeer de benodigde pakketten:
+Windows kan administratorrechten vereisen om MySQL80 via Start-Service te starten. Bij Access is denied moet PowerShell als administrator worden geopend.
 
-```
-npm install
-```
+Belangrijke routes
 
-Start de ontwikkelserver:
+/login
+/werkorders
+/werkorders/new
+/werkorders/:id
+/werkorders/:id/edit
+/users
 
-```
-npm run dev
-```
+/users is alleen toegankelijk voor owner en admin.
 
-De applicatie is daarna beschikbaar via:
+Een medewerker die /users probeert te openen wordt teruggestuurd naar /werkorders.
 
-```
-http://localhost:5173
-```
+Werkorderdetailroutes worden ook in de backend op eigenaarschap en rol gecontroleerd.
 
-## Gebruik
-### Werkorderformulier invullen
-Open de volgende pagina:
+Authenticatie
 
-```
-http://localhost:5173/
-```
+Aanmelden verloopt via:
 
-Het formulier is openbaar toegankelijk. Een gebruiker hoeft niet in te loggen om een werkorder in te vullen en te verzenden.
-
-### Beheerder aanmelden
-Open de admin-inlogpagina:
-
-```
-http://localhost:5173/admin/login
-```
-
-Meld aan met een geldig beheerdersaccount.
-
-### Ingediende werkorders bekijken
-Na het inloggen kunnen alle werkorders worden bekeken via:
-
-```
-http://localhost:5173/admin/werkorders
-```
-
-Voor deze pagina is een geldig JWT-token vereist.
-
-## API-endpoints
-| Methode | Endpoint                    | Beschrijving                                         | Authenticatie |
-| ------- | --------------------------- | ---------------------------------------------------- | ------------- |
-| `POST`  | `/api/werkorders`           | Maakt een nieuwe werkorder aan                       | Nee           |
-| `GET`   | `/api/werkorders`           | Geeft alle werkorders terug                          | Ja            |
-| `GET`   | `/api/werkorders/:id`       | Geeft de details van één werkorder terug             | Ja            |
-| `POST`  | `/api/werkorders/:id/fotos` | Uploadt een foto bij een werkorder                   | Nee           |
-| `POST`  | `/api/auth/login`           | Meldt een beheerder aan en geeft een JWT-token terug | Nee           |
-
-## Authenticatie
-Beheerders melden zich aan via:
-
-```
 POST /api/auth/login
-```
 
-Wanneer de inloggegevens correct zijn, geeft de backend een JWT-token terug.
+Na succesvolle authenticatie retourneert de backend een JWT-token. Beveiligde API-verzoeken sturen het token mee als:
 
-Voor beveiligde routes moet dit token worden meegestuurd in de `Authorization`-header:
-
-```
 Authorization: Bearer <jwt-token>
-```
 
-Wachtwoorden van beheerders worden niet als leesbare tekst opgeslagen. De wachtwoorden worden met bcrypt gehasht voordat ze in de database worden opgeslagen.
+Het token bevat onder andere userId, email, role, iat en exp. Tokens zijn 8 uur geldig.
 
-## Databaseschema
-### werkorders
-Bevat de hoofdgegevens van ingediende werkorders.
+Wanneer JWT_SECRET wordt gewijzigd, worden bestaande sessies ongeldig en moeten gebruikers opnieuw inloggen.
 
-Mogelijke gegevens zijn onder andere:
+Wachtwoorden worden met bcrypt gehasht opgeslagen.
 
-* Klantgegevens
-* Werkordergegevens
-* Uitgevoerde werkzaamheden
-* Opmerkingen
-* Datum van oplevering
-* Status van de werkorder
+Belangrijkste API-routes
 
-### materialen
-Bevat materialen die bij een werkorder zijn gebruikt of geleverd.
+Authenticatie en gebruikers
 
-Een materiaal kan onder een van de volgende categorieën vallen:
+Methode
 
-* Klant
-* Bedrijf
-* Verkoop
+Endpoint
 
-Elke materiaalregistratie is gekoppeld aan een werkorder.
+Beschrijving
 
-### fotos
-Bevat informatie over geüploade foto’s.
+POST
 
-Per foto kunnen onder andere de volgende gegevens worden opgeslagen:
+/api/auth/login
 
-* Bestandsnaam
-* Bestandspad
-* Beschrijving
-* Bijbehorende werkorder
+Aanmelden
 
-### users
-Bevat de beheerdersaccounts.
+GET
 
-De wachtwoorden worden met bcrypt gehasht opgeslagen.
+/api/auth/users
 
-## Foto-uploads
-Foto’s worden via Multer door de backend verwerkt.
+Gebruikers ophalen
 
-Bij het uploaden moet worden gecontroleerd op:
+POST
 
-* Toegestane bestandstypen
-* Maximale bestandsgrootte
-* Veilige bestandsnamen
-* Geldige werkorder-ID
-* Correcte opslaglocatie
+/api/auth/users
 
-Geüploade bestanden en uploadmappen moeten waar nodig aan `.gitignore` worden toegevoegd.
+Gebruiker aanmaken
 
-## Ontwikkelafspraken
-* Alle zichtbare teksten in de applicatie moeten in het Nederlands zijn.
-* Alle opmerkingen in de broncode moeten in het Nederlands worden geschreven.
-* Functies, klassen en bestanden moeten duidelijke namen hebben.
-* Controllers mogen geen uitgebreide bedrijfslogica bevatten.
-* Databasequery’s moeten in repositories worden geplaatst.
-* Bedrijfslogica moet in services worden geplaatst.
-* Gevoelige gegevens mogen niet rechtstreeks in de broncode worden opgeslagen.
-* Omgevingsvariabelen moeten via een `.env`-bestand worden ingesteld.
-* Het `.env`-bestand en de map `node_modules` mogen niet aan Git worden toegevoegd.
-* Foutmeldingen voor gebruikers moeten duidelijk en Nederlandstalig zijn.
-* Technische foutdetails mogen in productie niet rechtstreeks aan gebruikers worden getoond.
+PATCH
 
-## Veiligheid
-Voor gebruik in een productieomgeving moeten minimaal de volgende maatregelen worden toegepast:
+/api/auth/users/:id/password
 
-* Gebruik een sterk beheerderswachtwoord.
-* Gebruik een lange en willekeurige `JWT_SECRET`.
-* Gebruik HTTPS.
-* Valideer alle gegevens die via het formulier worden ontvangen.
-* Beperk de toegestane bestandstypen bij foto-uploads.
-* Stel een maximale bestandsgrootte voor uploads in.
-* Gebruik voorbereide SQL-query’s om SQL-injectie te voorkomen.
-* Beperk CORS tot toegestane domeinen.
-* Voeg rate limiting toe aan de inlogroute.
-* Deel het `.env`-bestand nooit openbaar.
-* Gebruik niet de standaarddatabasegegevens in een productieomgeving.
+Wachtwoord wijzigen
 
-## Veelvoorkomende problemen
-### Dockercontainer start niet
-Controleer of Docker Desktop actief is.
+PATCH
 
-Voer daarna opnieuw uit:
+/api/auth/users/:id/role
 
-```
-docker compose up -d
-```
+Rol wijzigen
 
-Controleer de status van de containers:
+DELETE
 
-```
-docker compose ps
-```
+/api/auth/users/:id
 
-### Poort 3307 is al in gebruik
-Pas de poort in `docker-compose.yml` aan.
+Gebruiker verwijderen
 
-Pas daarna ook `DB_PORT` in `backend/.env` aan.
+Werkorders
 
-### Databaseschema wordt niet geladen
-Controleer of de containernaam correct is:
+Methode
 
-```
-docker ps
-```
+Endpoint
 
-Controleer daarnaast of het bestand `database/schema.sql` bestaat en of het PowerShell-commando vanuit de hoofdmap van het project wordt uitgevoerd.
+Beschrijving
 
-### Backend kan geen verbinding maken met de database
-Controleer de volgende waarden in `backend/.env`:
+GET
 
-* `DB_HOST`
-* `DB_PORT`
-* `DB_USER`
-* `DB_PASSWORD`
-* `DB_NAME`
+/api/werkorders
 
-Controleer ook of de MySQL-container actief is.
+Toegankelijke werkorders ophalen
 
-### Beheerder kan niet inloggen
-Controleer of het beheerdersaccount is aangemaakt:
+GET
 
-```
-npx ts-node src/createAdmin.ts
-```
+/api/werkorders/:id
 
-Controleer daarnaast of het e-mailadres en wachtwoord overeenkomen met de gegevens in het aanmaakscript.
+Werkorderdetail ophalen
 
-### Frontend kan de backend niet bereiken
-Controleer of de backend actief is op:
+POST
 
-```
-http://localhost:3000
-```
+/api/werkorders/drafts
 
-Controleer ook de API-basis-URL in de frontendconfiguratie en de CORS-instellingen van de backend.
+Nieuw concept aanmaken
 
-### Foto-upload werkt niet
-Controleer:
-* Of de uploadmap bestaat
-* Of de backend schrijfrechten heeft
-* Of het bestandstype is toegestaan
-* Of het bestand niet te groot is
-* Of de opgegeven werkorder bestaat
+GET
 
-## Productiegebruik
-Voor productiegebruik moeten de frontend en backend als productiebuild worden uitgevoerd.
+/api/werkorders/drafts
 
-Maak de frontendbuild met:
+Concepten ophalen
 
-```
+PATCH
+
+/api/werkorders/:id
+
+Concept bijwerken
+
+PUT
+
+/api/werkorders/:id/materialen
+
+Materialen van concept opslaan
+
+POST
+
+/api/werkorders/:id/complete
+
+Concept voltooien
+
+POST
+
+/api/werkorders/:id/fotos
+
+Foto uploaden
+
+Foto- en werkorderroutes zijn beveiligd met authenticatie en autorisatie.
+
+Autorisatiemodel
+
+Actie
+
+Owner
+
+Admin
+
+Medewerker
+
+Eigen werkorders bekijken
+
+Ja
+
+Ja
+
+Ja
+
+Alle werkorders bekijken
+
+Ja
+
+Ja
+
+Nee
+
+Alle concepten bekijken
+
+Ja
+
+Ja
+
+Nee
+
+Eigen concept bewerken
+
+Ja
+
+Ja
+
+Ja
+
+Concept van andere gebruiker bewerken
+
+Ja
+
+Ja
+
+Nee
+
+Gebruikersbeheer openen
+
+Ja
+
+Ja
+
+Nee
+
+Medewerker aanmaken
+
+Ja
+
+Ja
+
+Nee
+
+Admin aanmaken
+
+Ja
+
+Nee
+
+Nee
+
+Medewerker verwijderen
+
+Ja
+
+Ja
+
+Nee
+
+Admin verwijderen
+
+Ja
+
+Nee
+
+Nee
+
+Medewerkerwachtwoord wijzigen
+
+Ja
+
+Ja
+
+Nee
+
+Adminwachtwoord wijzigen
+
+Ja
+
+Nee
+
+Nee
+
+Rollen wijzigen
+
+Ja
+
+Nee
+
+Nee
+
+Owner verwijderen
+
+Nee
+
+Nee
+
+Nee
+
+Owner-rol wijzigen
+
+Nee
+
+Nee
+
+Nee
+
+Database
+
+De applicatie gebruikt vier hoofdtabellen:
+
+users
+
+Bevat gebruikersaccounts met onder andere:
+
+id
+
+email
+
+password_hash
+
+role
+
+created_at
+
+Rollen: owner, admin, medewerker.
+
+werkorders
+
+Bevat werkorders en concepten met onder andere:
+
+werkorder_id
+
+aankomsttijd
+
+eindtijd
+
+datum
+
+uitgevoerde_werkzaamheden
+
+status
+
+is_voltooid
+
+created_by
+
+created_at
+
+updated_at
+
+created_by bepaalt welke medewerker eigenaar is van een werkorder.
+
+materialen
+
+Bevat materialen die aan een werkorder gekoppeld zijn, inclusief naam, aantal, eenheid en categorie (klant, bedrijf, verkoop).
+
+fotos
+
+Bevat informatie over geüploade foto's, waaronder werkorder-ID, bestandspad, beschrijving, genomen_op en created_at.
+
+Concepten en automatisch opslaan
+
+Nieuwe werkorders worden eerst als concept opgeslagen. Tijdens het invullen worden wijzigingen automatisch opgeslagen na een korte vertraging.
+
+De frontend kan onder andere de volgende statussen tonen:
+
+Niet opgeslagen
+Automatisch opslaan...
+Automatisch opgeslagen
+Fout bij automatisch opslaan
+
+Foto's worden niet door de automatische opslag geüpload; foto-upload gebeurt afzonderlijk.
+
+Een voltooide werkorder kan daarna niet meer als concept worden gewijzigd.
+
+Zoeken en filteren
+
+Op de werkorderpagina kan worden gezocht op:
+
+werkorder-ID
+
+uitgevoerde werkzaamheden
+
+Er kan worden gefilterd op:
+
+Alle
+
+Concept
+
+Voltooid
+
+Niet Voltooid
+
+In Afwachting
+
+Filtering gebeurt alleen op werkorders waarvoor de huidige gebruiker via de backend toegang heeft.
+
+Builds controleren
+
+Backend:
+
+cd backend
+npx tsc --noEmit
+
+Frontend:
+
+cd frontend
 npm run build
-```
 
-Compileer de backend volgens de scripts die in `backend/package.json` zijn ingesteld.
+Voor oplevering moeten beide zonder fouten eindigen.
 
-Gebruik voor productie bij voorkeur:
+.gitignore
 
-* Een reverse proxy, zoals Nginx
-* HTTPS-certificaten
-* Een procesbeheerder, zoals PM2
-* Een afzonderlijke productiedatabase
-* Sterke en unieke databasegegevens
-* Automatische back-ups
-* Centrale foutregistratie
+Minimaal aanbevolen:
 
-## Licentie
-Voeg in deze sectie de licentie van het project toe.
+node_modules/
+dist/
+
+.env
+backend/.env
+frontend/.env
+
+database-backups/
+
+database/setup.sql moet wel in GitLab blijven staan, omdat dit nodig is om een nieuwe database op te zetten.
+
+Veelvoorkomende problemen
+
+package.json niet gevonden
+
+Voer npm install en npm run dev vanuit de hoofdmap werkorder-formulier/ uit.
+
+MySQL-service kan niet worden gestart
+
+Get-Service MySQL80
+
+Handmatig starten:
+
+Start-Service MySQL80
+
+Bij Access is denied moet PowerShell als administrator worden gestart.
+
+Access denied for user 'formulier_user'@'localhost'
+
+Controleer handmatig:
+
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" `
+  -u formulier_user `
+  -p `
+  werkorder_db
+
+Controleer daarnaast of backend/.env hetzelfde databasewachtwoord gebruikt.
+
+Backend kan database niet bereiken
+
+Controleer in backend/.env:
+
+DB_HOST
+DB_PORT
+DB_USER
+DB_PASSWORD
+DB_NAME
+
+De huidige lokale configuratie gebruikt localhost, poort 3306 en database werkorder_db.
+
+Login geeft 401 Unauthorized
+
+Controleer eerst of de databaseverbinding werkt. Controleer daarna of het account bestaat en of het gebruikte wachtwoord overeenkomt met de bcrypt-hash.
+
+Frontend kan backend niet bereiken
+
+Controleer of de backend draait op http://localhost:3000 en de frontend op http://localhost:5173.
+
+Ontwikkelafspraken
+
+Alle zichtbare applicatieteksten zijn Nederlandstalig.
+
+Controllers bevatten zo min mogelijk bedrijfslogica.
+
+Bedrijfslogica hoort in services.
+
+SQL-query's horen in repositories.
+
+Gevoelige waarden horen in .env.
+
+.env mag niet naar GitLab worden gepusht.
+
+Voltooide werkorders zijn niet meer bewerkbaar.
+
+Autorisatie moet altijd door de backend worden afgedwongen; alleen knoppen verbergen in de frontend is niet voldoende.
+
+Veiligheid
+
+Voor productiegebruik:
+
+gebruik een sterke en unieke JWT_SECRET
+
+gebruik sterke databasegegevens
+
+gebruik sterke gebruikerswachtwoorden
+
+gebruik HTTPS
+
+beperk CORS tot toegestane domeinen
+
+valideer alle invoer
+
+beperk bestandstypen en bestandsgrootte bij uploads
+
+gebruik prepared statements
+
+voeg rate limiting toe aan login
+
+deel .env nooit openbaar
+
+maak periodieke databaseback-ups
+
+Openstaand onderdeel
+
+De belangrijkste nog openstaande functionele keuze is:
+
+Wilt u dat er automatisch een e-mail wordt verstuurd zodra een werkorder is voltooid?
+
+Als dit gewenst is, moet nog worden bepaald:
+
+naar welk e-mailadres de e-mail wordt gestuurd
+
+welke gegevens in de e-mail komen
+
+op welk moment de e-mail wordt verzonden
+
+welke mailserver of e-mailprovider wordt gebruikt
+
+Productiegebruik
+
+Voor productie wordt aanbevolen:
+
+frontend production build
+
+gecompileerde backend
+
+HTTPS
+
+reverse proxy, bijvoorbeeld Nginx
+
+procesbeheerder, bijvoorbeeld PM2
+
+afzonderlijke productiedatabase
+
+automatische back-ups
+
+centrale logging
+
+veilige opslag van secrets
+
+De huidige npm run dev-flow is bedoeld voor lokale ontwikkeling.
+
+Licentie
+
+Voeg hier de gewenste licentie toe.
 
 Wanneer geen licentie is opgegeven, mag de broncode niet zonder toestemming worden gekopieerd, aangepast of verspreid.

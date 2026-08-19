@@ -1,12 +1,20 @@
+export type WerkorderStatus =
+  | 'Voltooid'
+  | 'Niet Voltooid'
+  | 'In Afwachting';
+
 export interface Werkorder {
   id?: number;
   werkorder_id: string;
-  aankomsttijd: string;
-  eindtijd: string;
+  aankomsttijd?: string | null;
+  eindtijd?: string | null;
   datum: string;
-  uitgevoerde_werkzaamheden: string;
-  status: 'Voltooid' | 'Niet Voltooid' | 'In Afwachting';
+  uitgevoerde_werkzaamheden?: string | null;
+  status?: WerkorderStatus | null;
+  is_voltooid?: boolean;
+  created_by?: number | null;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface Materiaal {
@@ -21,7 +29,8 @@ export interface Materiaal {
 export interface Foto {
   id?: number;
   werkorder_id: number;
-  beschrijving?: string;
+  beschrijving?: string | null;
   bestandspad: string;
+  genomen_op: string;
   created_at?: string;
 }
