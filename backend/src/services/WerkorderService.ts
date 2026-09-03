@@ -25,12 +25,151 @@ import {
 
 interface WerkorderInput {
   werkorder: Werkorder;
+
   materialen: Omit<
     Materiaal,
     'werkorder_id'
   >[];
+
   createdBy: number;
 }
+
+const getToday = (): string => {
+  const now =
+    new Date();
+
+  const year =
+    now.getFullYear();
+
+  const month =
+    String(
+      now.getMonth() + 1
+    ).padStart(
+      2,
+      '0'
+    );
+
+  const day =
+    String(
+      now.getDate()
+    ).padStart(
+      2,
+      '0'
+    );
+
+  return (
+    `${year}-${month}-${day}`
+  );
+};
+
+const isValidDateString = (
+  value: string
+): boolean => {
+  /*
+   * Alleen exact:
+   *
+   * YYYY-MM-DD
+   *
+   * accepteren.
+   */
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})$/
+      .exec(value);
+
+  if (!match) {
+    return false;
+  }
+
+  const year =
+    Number(match[1]);
+
+  const month =
+    Number(match[2]);
+
+  const day =
+    Number(match[3]);
+
+  /*
+   * Voorkomt onrealistische
+   * jaartallen.
+   */
+  if (
+    year < 1900 ||
+    year > 9999
+  ) {
+    return false;
+  }
+
+  if (
+    month < 1 ||
+    month > 12
+  ) {
+    return false;
+  }
+
+  if (
+    day < 1 ||
+    day > 31
+  ) {
+    return false;
+  }
+
+  const date =
+    new Date(
+      year,
+      month - 1,
+      day
+    );
+
+  /*
+   * JavaScript maakt bijvoorbeeld
+   * 2026-02-31 automatisch maart.
+   *
+   * Daarom controleren we de
+   * onderdelen opnieuw.
+   */
+  return (
+    date.getFullYear() ===
+      year &&
+    date.getMonth() ===
+      month - 1 &&
+    date.getDate() ===
+      day
+  );
+};
+
+const validateWerkorderDate = (
+  datum: string
+): void => {
+  if (!datum) {
+    throw new Error(
+      'De datum is verplicht.'
+    );
+  }
+
+  if (
+    !isValidDateString(
+      datum
+    )
+  ) {
+    throw new Error(
+      'Voer een geldige datum in.'
+    );
+  }
+
+  /*
+   * YYYY-MM-DD kan na de
+   * bovenstaande validatie veilig
+   * alfabetisch vergeleken worden.
+   */
+  if (
+    datum > getToday()
+  ) {
+    throw new Error(
+      'De datum mag niet in de toekomst liggen.'
+    );
+  }
+};
 
 export class WerkorderService {
   private werkorderRepo =
@@ -54,9 +193,46 @@ export class WerkorderService {
     );
   }
 
+  private async canAccessWerkorder(
+    werkorder: Werkorder,
+    userId: number,
+    role: UserRole
+  ): Promise<boolean> {
+    if (
+      this.hasGlobalAccess(
+        role
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      werkorder.assigned_to ===
+      userId
+    ) {
+      return true;
+    }
+
+    if (
+      !werkorder.id
+    ) {
+      return false;
+    }
+
+    return this.werkorderRepo
+      .hasUserAccess(
+        werkorder.id,
+        userId
+      );
+  }
+
   async createWerkorder(
     input: WerkorderInput
   ): Promise<number> {
+    validateWerkorderDate(
+      input.werkorder.datum
+    );
+
     if (
       !input.werkorder.status
     ) {
@@ -79,20 +255,23 @@ export class WerkorderService {
     }
 
     const werkorderId =
-      await this.werkorderRepo.create(
-        input.werkorder,
-        input.createdBy
-      );
+      await this.werkorderRepo
+        .create(
+          input.werkorder,
+          input.createdBy
+        );
 
     for (
       const materiaal
       of input.materialen
     ) {
-      await this.materiaalRepo.create({
-        ...materiaal,
-        werkorder_id:
-          werkorderId
-      });
+      await this.materiaalRepo
+        .create({
+          ...materiaal,
+
+          werkorder_id:
+            werkorderId
+        });
     }
 
     await this.emailService
@@ -120,26 +299,9 @@ export class WerkorderService {
       );
     }
 
-    if (!datum) {
-      throw new Error(
-        'De datum is verplicht.'
-      );
-    }
-
-    const parsedDate =
-      new Date(
-        `${datum}T00:00:00`
-      );
-
-    if (
-      Number.isNaN(
-        parsedDate.getTime()
-      )
-    ) {
-      throw new Error(
-        'Er is een geldige datum vereist.'
-      );
-    }
+    validateWerkorderDate(
+      datum
+    );
 
     return this.werkorderRepo
       .createDraft(
@@ -193,19 +355,14 @@ export class WerkorderService {
       );
     }
 
-    const hasGlobalAccess =
-      this.hasGlobalAccess(
+    const canAccess =
+      await this.canAccessWerkorder(
+        werkorder,
+        userId,
         role
       );
 
-    const isCreator =
-      werkorder.created_by ===
-      userId;
-
-    if (
-      !hasGlobalAccess &&
-      !isCreator
-    ) {
+    if (!canAccess) {
       throw new Error(
         'U heeft geen toestemming om dit concept te wijzigen.'
       );
@@ -245,24 +402,20 @@ export class WerkorderService {
 
     if (
       updates.datum !==
-        undefined &&
-      typeof updates.datum ===
-        'string'
+      undefined
     ) {
-      const parsedDate =
-        new Date(
-          `${updates.datum}T00:00:00`
-        );
-
       if (
-        Number.isNaN(
-          parsedDate.getTime()
-        )
+        typeof updates.datum !==
+        'string'
       ) {
         throw new Error(
-          'Er is een geldige datum vereist.'
+          'Voer een geldige datum in.'
         );
       }
+
+      validateWerkorderDate(
+        updates.datum
+      );
     }
 
     const updated =
@@ -281,11 +434,13 @@ export class WerkorderService {
 
   async updateDraftMaterialen(
     id: number,
+
     materialen: Omit<
       Materiaal,
       'id' |
       'werkorder_id'
     >[],
+
     userId: number,
     role: UserRole
   ): Promise<void> {
@@ -307,19 +462,14 @@ export class WerkorderService {
       );
     }
 
-    const hasGlobalAccess =
-      this.hasGlobalAccess(
+    const canAccess =
+      await this.canAccessWerkorder(
+        werkorder,
+        userId,
         role
       );
 
-    const isCreator =
-      werkorder.created_by ===
-      userId;
-
-    if (
-      !hasGlobalAccess &&
-      !isCreator
-    ) {
+    if (!canAccess) {
       throw new Error(
         'U heeft geen toestemming om de materialen van dit concept te wijzigen.'
       );
@@ -350,7 +500,9 @@ export class WerkorderService {
           if (
             !allowedTips.includes(
               materiaal.tip as
-                (typeof allowedTips)[number]
+                (
+                  typeof allowedTips
+                )[number]
             )
           ) {
             throw new Error(
@@ -362,7 +514,8 @@ export class WerkorderService {
             typeof
               materiaal.naam !==
               'string' ||
-            !materiaal.naam.trim()
+            !materiaal.naam
+              .trim()
           ) {
             throw new Error(
               `De naam van materiaal ${index + 1} is verplicht.`
@@ -456,23 +609,28 @@ export class WerkorderService {
       );
     }
 
-    const hasGlobalAccess =
-      this.hasGlobalAccess(
+    const canAccess =
+      await this.canAccessWerkorder(
+        werkorder,
+        userId,
         role
       );
 
-    const isCreator =
-      werkorder.created_by ===
-      userId;
-
-    if (
-      !hasGlobalAccess &&
-      !isCreator
-    ) {
+    if (!canAccess) {
       throw new Error(
         'U heeft geen toestemming om dit concept te voltooien.'
       );
     }
+
+    /*
+     * Ook hier opnieuw controleren.
+     *
+     * Zo kan een oud foutief concept
+     * niet alsnog worden voltooid.
+     */
+    validateWerkorderDate(
+      werkorder.datum
+    );
 
     const requiredFields = [
       werkorder.werkorder_id,
@@ -493,7 +651,9 @@ export class WerkorderService {
             .trim() === ''
       );
 
-    if (hasMissingField) {
+    if (
+      hasMissingField
+    ) {
       throw new Error(
         'Alle verplichte velden moeten worden ingevuld voordat het concept kan worden voltooid.'
       );
@@ -544,19 +704,14 @@ export class WerkorderService {
       );
     }
 
-    const hasGlobalAccess =
-      this.hasGlobalAccess(
+    const canAccess =
+      await this.canAccessWerkorder(
+        werkorder,
+        userId,
         role
       );
 
-    const isCreator =
-      werkorder.created_by ===
-      userId;
-
-    if (
-      !hasGlobalAccess &&
-      !isCreator
-    ) {
+    if (!canAccess) {
       throw new Error(
         'U heeft geen toegang tot deze werkorder.'
       );
@@ -579,5 +734,323 @@ export class WerkorderService {
       materialen,
       fotos
     };
+  }
+
+  async transferDraft(
+    id: number,
+    newUserId: number,
+    reason: string,
+    userId: number,
+    role: UserRole
+  ): Promise<void> {
+    const werkorder =
+      await this.werkorderRepo
+        .findById(id);
+
+    if (!werkorder) {
+      throw new Error(
+        'Werkorder niet gevonden.'
+      );
+    }
+
+    if (
+      werkorder.is_voltooid
+    ) {
+      throw new Error(
+        'Een voltooide werkorder kan niet worden overgedragen.'
+      );
+    }
+
+    const canAccess =
+      await this.canAccessWerkorder(
+        werkorder,
+        userId,
+        role
+      );
+
+    if (!canAccess) {
+      throw new Error(
+        'U heeft geen toestemming om dit concept over te dragen.'
+      );
+    }
+
+    if (
+      !Number.isInteger(
+        newUserId
+      ) ||
+      newUserId <= 0
+    ) {
+      throw new Error(
+        'Ongeldige gebruiker.'
+      );
+    }
+
+    const normalizedReason =
+      reason.trim();
+
+    if (
+      !normalizedReason
+    ) {
+      throw new Error(
+        'Een reden voor de overdracht is verplicht.'
+      );
+    }
+
+    if (
+      normalizedReason.length >
+      1000
+    ) {
+      throw new Error(
+        'De reden voor de overdracht is te lang.'
+      );
+    }
+
+    if (
+      werkorder.assigned_to ===
+      newUserId
+    ) {
+      throw new Error(
+        'Dit concept is al aan deze gebruiker toegewezen.'
+      );
+    }
+
+    const newUser =
+      await this.werkorderRepo
+        .findUserById(
+          newUserId
+        );
+
+    if (!newUser) {
+      throw new Error(
+        'De geselecteerde gebruiker bestaat niet of kan geen werkorders toegewezen krijgen.'
+      );
+    }
+
+    const changedByUser =
+      await this.werkorderRepo
+        .findAnyUserById(
+          userId
+        );
+
+    if (!changedByUser) {
+      throw new Error(
+        'De huidige gebruiker kon niet worden gevonden.'
+      );
+    }
+
+    let previousUserEmail:
+      | string
+      | null = null;
+
+    if (
+      werkorder.assigned_to
+    ) {
+      const previousUser =
+        await this.werkorderRepo
+          .findAnyUserById(
+            werkorder.assigned_to
+          );
+
+      previousUserEmail =
+        previousUser?.email ??
+        null;
+    }
+
+    const transferred =
+      await this.werkorderRepo
+        .transferAssigneeWithHistory(
+          id,
+
+          werkorder.assigned_to ??
+            null,
+
+          previousUserEmail,
+
+          newUser.id,
+
+          newUser.email,
+
+          userId,
+
+          changedByUser.email,
+
+          normalizedReason
+        );
+
+    if (!transferred) {
+      throw new Error(
+        'Het concept kon niet worden overgedragen.'
+      );
+    }
+  }
+
+  async getAssignmentHistory(
+    id: number,
+    userId: number,
+    role: UserRole
+  ) {
+    const werkorder =
+      await this.werkorderRepo
+        .findById(id);
+
+    if (!werkorder) {
+      throw new Error(
+        'Werkorder niet gevonden.'
+      );
+    }
+
+    const canAccess =
+      await this.canAccessWerkorder(
+        werkorder,
+        userId,
+        role
+      );
+
+    if (!canAccess) {
+      throw new Error(
+        'U heeft geen toegang tot deze werkorder.'
+      );
+    }
+
+    return this.werkorderRepo
+      .getAssignmentHistory(
+        id
+      );
+  }
+
+  async getWerkorderAccess(
+    id: number,
+    userId: number,
+    role: UserRole
+  ): Promise<number[]> {
+    const werkorder =
+      await this.werkorderRepo
+        .findById(id);
+
+    if (!werkorder) {
+      throw new Error(
+        'Werkorder niet gevonden.'
+      );
+    }
+
+    const canAccess =
+      await this.canAccessWerkorder(
+        werkorder,
+        userId,
+        role
+      );
+
+    if (!canAccess) {
+      throw new Error(
+        'U heeft geen toegang tot deze werkorder.'
+      );
+    }
+
+    return this.werkorderRepo
+      .getAccessUserIds(
+        id
+      );
+  }
+
+  async updateWerkorderAccess(
+    id: number,
+    userIds: number[],
+    grantedBy: number,
+    role: UserRole
+  ): Promise<void> {
+    if (
+      role !== 'owner'
+    ) {
+      throw new Error(
+        'Alleen de owner kan extra toegang beheren.'
+      );
+    }
+
+    const werkorder =
+      await this.werkorderRepo
+        .findById(id);
+
+    if (!werkorder) {
+      throw new Error(
+        'Werkorder niet gevonden.'
+      );
+    }
+
+    if (
+      werkorder.is_voltooid
+    ) {
+      throw new Error(
+        'De toegang van een voltooide werkorder kan niet worden gewijzigd.'
+      );
+    }
+
+    if (
+      !Array.isArray(
+        userIds
+      )
+    ) {
+      throw new Error(
+        'De lijst met gebruikers is ongeldig.'
+      );
+    }
+
+    const uniqueUserIds =
+      [
+        ...new Set(
+          userIds
+            .map(Number)
+            .filter(
+              value =>
+                Number.isInteger(
+                  value
+                ) &&
+                value > 0
+            )
+        )
+      ];
+
+    const assignableUsers =
+      await this.werkorderRepo
+        .findAssignableUsers();
+
+    const allowedUserIds =
+      new Set(
+        assignableUsers.map(
+          user =>
+            user.id
+        )
+      );
+
+    if (
+      uniqueUserIds.some(
+        value =>
+          !allowedUserIds.has(
+            value
+          )
+      )
+    ) {
+      throw new Error(
+        'Een of meer geselecteerde gebruikers zijn ongeldig.'
+      );
+    }
+
+    const filteredUserIds =
+      uniqueUserIds.filter(
+        value =>
+          value !==
+          werkorder.assigned_to
+      );
+
+    await this.werkorderRepo
+      .replaceAccess(
+        id,
+        filteredUserIds,
+        grantedBy
+      );
+  }
+
+  async getAssignableUsers() {
+    return this.werkorderRepo
+      .findAssignableUsers();
   }
 }

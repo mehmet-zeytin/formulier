@@ -6,101 +6,244 @@ import {
 
 import jwt from 'jsonwebtoken';
 
+import {
+  UserRepository
+} from '../repositories/UserRepository';
+
 import type {
   UserRole
 } from '../models/User';
 
-export interface AuthUser {
+interface JwtPayload {
   userId: number;
+
+  email?: string;
+
+  role?: UserRole;
+
+  iat?: number;
+
+  tokenVersion?: number;
+
+  exp?: number;
+}
+
+export interface AuthenticatedUser {
+  userId: number;
+
   email: string;
+
   role: UserRole;
 }
 
 export interface AuthRequest
   extends Request {
-  user?: AuthUser;
+  user?:
+    AuthenticatedUser;
 }
 
-export const authMiddleware = (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): void => {
-  const authorization =
-    req.headers.authorization;
+const AUTH_COOKIE_NAME =
+  'auth_token';
 
-  if (
-    !authorization ||
-    !authorization.startsWith(
-      'Bearer '
-    )
-  ) {
-    res.status(401).json({
-      message:
-        'U moet ingelogd zijn.'
-    });
+const userRepository =
+  new UserRepository();
 
-    return;
-  }
+export const authMiddleware =
+  async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      /*
+       * JWT wordt uit de
+       * HttpOnly-cookie gehaald.
+       */
+      
+      console.log(
+        'COOKIE DEBUG:',
+        req.cookies
+      );
+      
+      const token =
+        req.cookies?.[
+          AUTH_COOKIE_NAME
+        ];
 
-  const token =
-    authorization.substring(7);
+      if (
+        typeof token !==
+          'string' ||
+        !token
+      ) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
 
-  const jwtSecret =
-    process.env.JWT_SECRET;
+        return;
+      }
 
-  if (!jwtSecret) {
-    res.status(500).json({
-      message:
-        'JWT_SECRET is niet geconfigureerd.'
-    });
+      const jwtSecret =
+        process.env.JWT_SECRET;
 
-    return;
-  }
+      if (!jwtSecret) {
+        console.error(
+          'JWT_SECRET is niet geconfigureerd.'
+        );
 
-  try {
-    const decoded =
-      jwt.verify(
-        token,
-        jwtSecret
-      ) as Partial<AuthUser>;
+        res.status(500).json({
+          message:
+            'Er is een serverfout opgetreden.'
+        });
 
-    const validRole =
-      decoded.role === 'owner' ||
-      decoded.role === 'admin' ||
-      decoded.role === 'medewerker';
+        return;
+      }
 
-    if (
-      typeof decoded.userId !==
-        'number' ||
-      typeof decoded.email !==
-        'string' ||
-      !validRole
+      /*
+       * Handtekening en vervaldatum
+       * controleren.
+       */
+      const decoded =
+        jwt.verify(
+          token,
+          jwtSecret
+        ) as JwtPayload;
+
+      if (
+        !Number.isInteger(
+          decoded.userId
+        ) ||
+        decoded.userId <=
+          0
+      ) {
+        res.status(401).json({
+          message:
+            'Ongeldige authenticatie.'
+        });
+
+        return;
+      }
+
+      /*
+       * Gebruiker opnieuw uit
+       * database ophalen.
+       */
+      const user =
+        await userRepository
+          .findById(
+            decoded.userId
+          );
+
+      if (!user) {
+        res.status(401).json({
+          message:
+            'Uw account bestaat niet meer.'
+        });
+
+        return;
+      }
+
+      /*
+       * token_version voorkomt dat
+       * oude sessies geldig blijven
+       * na wachtwoordwijzigingen of
+       * andere invalidaties.
+       */
+      if (
+        !Number.isInteger(
+          decoded.tokenVersion
+        ) ||
+        decoded.tokenVersion !==
+          user.token_version
+      ) {
+        res.status(401).json({
+          message:
+            'Uw sessie is niet meer geldig. Log opnieuw in.'
+        });
+
+        return;
+      }
+
+      if (
+        Boolean(
+          user.is_deleted
+        )
+      ) {
+        res.status(401).json({
+          message:
+            'Uw account is verwijderd. Log opnieuw in met een actief account.'
+        });
+
+        return;
+      }
+
+      /*
+       * Altijd de actuele rol
+       * uit de database gebruiken.
+       */
+      if (
+        user.role !==
+          'owner' &&
+        user.role !==
+          'admin' &&
+        user.role !==
+          'medewerker'
+      ) {
+        res.status(401).json({
+          message:
+            'Uw account heeft geen geldige gebruikersrol.'
+        });
+
+        return;
+      }
+
+      req.user = {
+        userId:
+          user.id,
+
+        email:
+          user.email,
+
+        role:
+          user.role
+      };
+
+      next();
+    } catch (
+      error: unknown
     ) {
-      res.status(401).json({
+      if (
+        error instanceof
+          jwt.TokenExpiredError
+      ) {
+        res.status(401).json({
+          message:
+            'Uw sessie is verlopen. Log opnieuw in.'
+        });
+
+        return;
+      }
+
+      if (
+        error instanceof
+          jwt.JsonWebTokenError
+      ) {
+        res.status(401).json({
+          message:
+            'Ongeldige authenticatie.'
+        });
+
+        return;
+      }
+
+      console.error(
+        'Authenticatiefout:',
+        error
+      );
+
+      res.status(500).json({
         message:
-          'Ongeldige sessie.'
+          'Er is een serverfout opgetreden tijdens de authenticatie.'
       });
-
-      return;
     }
-
-    req.user = {
-      userId:
-        decoded.userId,
-
-      email:
-        decoded.email,
-
-      role:
-        decoded.role as UserRole
-    };
-
-    next();
-  } catch {
-    res.status(401).json({
-      message:
-        'Uw sessie is ongeldig of verlopen.'
-    });
-  }
-};
+  };

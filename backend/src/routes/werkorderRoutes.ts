@@ -1,11 +1,22 @@
-import { Router } from 'express';
-import { WerkorderController } from '../controllers/WerkorderController';
-import fotoRoutes from './fotoRoutes';
-import { authMiddleware } from '../middleware/authMiddleware';
+import {
+  Router
+} from 'express';
+
+import {
+  WerkorderController
+} from '../controllers/WerkorderController';
+
+import fotoRoutes
+  from './fotoRoutes';
+
+import {
+  authMiddleware
+} from '../middleware/authMiddleware';
 
 const router = Router();
-const controller = new WerkorderController();
 
+const controller =
+  new WerkorderController();
 
 router.post(
   '/drafts',
@@ -17,6 +28,18 @@ router.get(
   '/drafts',
   authMiddleware,
   controller.getDrafts
+);
+
+router.get(
+  '/assignable-users',
+  authMiddleware,
+  controller.getAssignableUsers
+);
+
+router.post(
+  '/',
+  authMiddleware,
+  controller.create
 );
 
 router.get(
@@ -35,6 +58,30 @@ router.post(
   '/:id/complete',
   authMiddleware,
   controller.completeDraft
+);
+
+router.patch(
+  '/:id/assignee',
+  authMiddleware,
+  controller.transferDraft
+);
+
+router.get(
+  '/:id/assignment-history',
+  authMiddleware,
+  controller.getAssignmentHistory
+);
+
+router.get(
+  '/:id/access',
+  authMiddleware,
+  controller.getAccess
+);
+
+router.put(
+  '/:id/access',
+  authMiddleware,
+  controller.updateAccess
 );
 
 router.patch(

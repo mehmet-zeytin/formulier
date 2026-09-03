@@ -1,15 +1,65 @@
-import { Router } from 'express';
-import { FotoController } from '../controllers/FotoController';
-import { upload } from '../config/multer';
-import { authMiddleware } from '../middleware/authMiddleware';
+import {
+  Router
+} from 'express';
 
-const router = Router({ mergeParams: true });
-const controller = new FotoController();
+import {
+  rateLimit
+} from 'express-rate-limit';
+
+import {
+  FotoController
+} from '../controllers/FotoController';
+
+import {
+  upload
+} from '../config/multer';
+
+import {
+  authMiddleware
+} from '../middleware/authMiddleware';
+
+const router =
+  Router({
+    mergeParams: true
+  });
+
+const controller =
+  new FotoController();
+
+const fotoUploadLimiter =
+  rateLimit({
+    windowMs:
+      15 *
+      60 *
+      1000,
+
+    limit: 30,
+
+    standardHeaders:
+      'draft-7',
+
+    legacyHeaders:
+      false,
+
+    message: {
+      message:
+        'Te veel foto-uploadpogingen. Probeer het later opnieuw.'
+    }
+  });
+
+router.get(
+  '/:fotoId/file',
+  authMiddleware,
+  controller.getFile
+);
 
 router.post(
   '/',
   authMiddleware,
-  upload.single('foto'),
+  fotoUploadLimiter,
+  upload.single(
+    'foto'
+  ),
   controller.upload
 );
 

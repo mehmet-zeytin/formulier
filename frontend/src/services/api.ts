@@ -1,10 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL =
-  'http://localhost:3000/api';
-
-const TOKEN_KEY =
-  'token';
+  import.meta.env.VITE_API_BASE_URL || 'api';
 
 export const api =
   axios.create({
@@ -12,24 +9,15 @@ export const api =
       API_BASE_URL,
 
     timeout:
-      15000
+      15000,
+
+    /*
+     * HttpOnly-cookie'yi backend'e
+     * otomatik gönder.
+     */
+    withCredentials:
+      true
   });
-
-api.interceptors.request.use(
-  config => {
-    const token =
-      localStorage.getItem(
-        TOKEN_KEY
-      );
-
-    if (token) {
-      config.headers.Authorization =
-        `Bearer ${token}`;
-    }
-
-    return config;
-  }
-);
 
 api.interceptors.response.use(
   response =>
@@ -37,22 +25,29 @@ api.interceptors.response.use(
 
   error => {
     const isLoginRequest =
-      error.config?.url?.includes(
-        '/auth/login'
-      );
+      error.config
+        ?.url
+        ?.includes(
+          '/auth/login'
+        );
+
+    const isLogoutRequest =
+      error.config
+        ?.url
+        ?.includes(
+          '/auth/logout'
+        );
 
     if (
-      error.response?.status ===
+      error.response
+        ?.status ===
         401 &&
-      !isLoginRequest
+      !isLoginRequest &&
+      !isLogoutRequest
     ) {
-      localStorage.removeItem(
-        TOKEN_KEY
-      );
-
       if (
         window.location.pathname !==
-        '/login'
+          '/login'
       ) {
         window.location.href =
           '/login';

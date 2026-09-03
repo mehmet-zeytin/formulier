@@ -8,24 +8,28 @@ import {
 } from 'react-router-dom';
 
 import {
+  changeUserPassword,
   changeUserRole,
   createUser,
   deleteUser,
+  getDeletedUsers,
   getUsers,
-  resetUserPassword,
+  restoreUser,
   type UserListItem
 } from '../services/userService';
 
 import {
-  getCurrentUser,  
+  getCurrentUserFromServer,
+  type CurrentUserResponse
 } from '../services/authService';
 
-const getErrorMessage = (
+const getApiMessage = (
   error: unknown,
   fallback: string
 ): string => {
   if (
-    typeof error === 'object' &&
+    typeof error ===
+      'object' &&
     error !== null &&
     'response' in error
   ) {
@@ -39,121 +43,197 @@ const getErrorMessage = (
       };
 
     return (
-      apiError.response?.data
+      apiError
+        .response
+        ?.data
         ?.message ??
       fallback
     );
   }
 
-  if (
-    error instanceof Error
-  ) {
-    return error.message;
-  }
-
   return fallback;
 };
 
+const formatDate = (
+  value:
+    | string
+    | null
+    | undefined
+): string => {
+  if (!value) {
+    return '-';
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value;
+  }
+
+  return date.toLocaleString(
+    'nl-NL'
+  );
+};
+
 export default function UsersPage() {
-  const currentUser =
-    getCurrentUser();
-
-  const [users, setUsers] =
-    useState<UserListItem[]>([]);
-
-  const [email, setEmail] =
-    useState('');
-
-  const [password, setPassword] =
-    useState('');
-
-  const [role, setRole] =
-    useState<
-      'admin' |
-      'medewerker'
-    >('medewerker');
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [saving, setSaving] =
-    useState(false);
-
   const [
-    operationUserId,
-    setOperationUserId
-  ] = useState<number | null>(
-    null
-  );
-
-  const [
-    resetUserId,
-    setResetUserId
-  ] = useState<number | null>(
-    null
-  );
-
-  const [
-    newPassword,
-    setNewPassword
-  ] = useState('');
-
-  const [error, setError] =
-    useState('');
-
-  const [success, setSuccess] =
-    useState('');
+    currentUser,
+    setCurrentUser
+  ] =
+    useState<CurrentUserResponse | null>(
+      null
+    );
 
   const isOwner =
     currentUser?.role ===
     'owner';
 
-  const loadUsers = async (
-    showLoading = false
-  ) => {
-    try {
-      if (showLoading) {
-        setLoading(true);
+  const isAdmin =
+    currentUser?.role ===
+    'admin';
+
+  const [
+    users,
+    setUsers
+  ] = useState<
+    UserListItem[]
+  >([]);
+
+  const [
+    deletedUsers,
+    setDeletedUsers
+  ] = useState<
+    UserListItem[]
+  >([]);
+
+  const [
+    email,
+    setEmail
+  ] = useState('');
+
+  const [
+    password,
+    setPassword
+  ] = useState('');
+
+  const [
+    role,
+    setRole
+  ] = useState<
+    | 'admin'
+    | 'medewerker'
+  >(
+    'medewerker'
+  );
+
+  const [
+    loading,
+    setLoading
+  ] = useState(true);
+
+  const [
+    saving,
+    setSaving
+  ] = useState(false);
+
+  const [
+    error,
+    setError
+  ] = useState('');
+
+  const [
+    success,
+    setSuccess
+  ] = useState('');
+
+  const loadUsers =
+    async (): Promise<void> => {
+      try {
+        setError('');
+
+        /*
+         * Haal eerst de actuele
+         * gebruiker op bij de backend.
+         *
+         * Hierdoor gebruiken we niet
+         * meer de mogelijk verouderde
+         * rol uit het JWT.
+         */
+        const currentUserData =
+          await getCurrentUserFromServer();
+
+        setCurrentUser(
+          currentUserData
+        );
+
+        const active =
+          await getUsers();
+
+        setUsers(
+          active
+        );
+
+        /*
+         * Alleen de actuele owner
+         * mag verwijderde gebruikers
+         * ophalen.
+         */
+        if (
+          currentUserData.role ===
+          'owner'
+        ) {
+          const deleted =
+            await getDeletedUsers();
+
+          setDeletedUsers(
+            deleted
+          );
+        } else {
+          setDeletedUsers(
+            []
+          );
+        }
+      } catch (
+        error: unknown
+      ) {
+        setError(
+          getApiMessage(
+            error,
+            'Gebruikers konden niet worden geladen.'
+          )
+        );
+      } finally {
+        setLoading(
+          false
+        );
       }
-
-      const data =
-        await getUsers();
-
-      setUsers(data);
-    } catch (
-      error: unknown
-    ) {
-      setError(
-        getErrorMessage(
-          error,
-          'Gebruikers konden niet worden geladen.'
-        )
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   useEffect(() => {
-    void loadUsers(true);
+    void loadUsers();
   }, []);
 
-  const clearMessages = () => {
-    setError('');
-    setSuccess('');
-  };
-
-  const handleCreateUser =
+  const handleSubmit =
     async (
       event:
-        React.FormEvent<HTMLFormElement>
-    ) => {
+        React.FormEvent<
+          HTMLFormElement
+        >
+    ): Promise<void> => {
       event.preventDefault();
 
-      clearMessages();
+      setError('');
+      setSuccess('');
 
       try {
-        setSaving(true);
+        setSaving(
+          true
+        );
 
         await createUser({
           email:
@@ -161,14 +241,12 @@ export default function UsersPage() {
 
           password,
 
-          role:
-            isOwner
-              ? role
-              : 'medewerker'
+          role
         });
 
         setEmail('');
         setPassword('');
+
         setRole(
           'medewerker'
         );
@@ -182,52 +260,38 @@ export default function UsersPage() {
         error: unknown
       ) {
         setError(
-          getErrorMessage(
+          getApiMessage(
             error,
             'De gebruiker kon niet worden aangemaakt.'
           )
         );
       } finally {
-        setSaving(false);
+        setSaving(
+          false
+        );
       }
     };
 
   const handleRoleChange =
     async (
-      user: UserListItem,
+      user:
+        UserListItem,
+
       newRole:
         | 'admin'
         | 'medewerker'
-    ) => {
-      if (
-        user.role === newRole
-      ) {
-        return;
-      }
-
-      const confirmed =
-        window.confirm(
-          `Wilt u de rol van ${user.email} wijzigen van ${user.role} naar ${newRole}?`
-        );
-
-      if (!confirmed) {
-        return;
-      }
-
-      clearMessages();
+    ): Promise<void> => {
+      setError('');
+      setSuccess('');
 
       try {
-        setOperationUserId(
-          user.id
-        );
-
         await changeUserRole(
           user.id,
           newRole
         );
 
         setSuccess(
-          'Gebruikersrol succesvol gewijzigd.'
+          `De rol van ${user.email} is gewijzigd.`
         );
 
         await loadUsers();
@@ -235,92 +299,90 @@ export default function UsersPage() {
         error: unknown
       ) {
         setError(
-          getErrorMessage(
+          getApiMessage(
             error,
             'De gebruikersrol kon niet worden gewijzigd.'
           )
         );
-      } finally {
-        setOperationUserId(
-          null
-        );
       }
     };
 
-  const handlePasswordReset =
+  const handlePasswordChange =
     async (
-      userId: number
-    ) => {
-      clearMessages();
+      user:
+        UserListItem
+    ): Promise<void> => {
+      const newPassword =
+        window.prompt(
+          `Nieuw wachtwoord voor ${user.email}:`
+        );
 
       if (
-        newPassword.length < 8
+        newPassword ===
+        null
       ) {
-        setError(
+        return;
+      }
+
+      if (
+        newPassword.length <
+        8
+      ) {
+        window.alert(
           'Het wachtwoord moet minimaal 8 tekens bevatten.'
         );
 
         return;
       }
 
-      try {
-        setOperationUserId(
-          userId
-        );
+      setError('');
+      setSuccess('');
 
-        await resetUserPassword(
-          userId,
+      try {
+        await changeUserPassword(
+          user.id,
           newPassword
         );
 
-        setNewPassword('');
-        setResetUserId(null);
-
         setSuccess(
-          'Wachtwoord succesvol gewijzigd.'
+          `Het wachtwoord van ${user.email} is gewijzigd.`
         );
       } catch (
         error: unknown
       ) {
         setError(
-          getErrorMessage(
+          getApiMessage(
             error,
             'Het wachtwoord kon niet worden gewijzigd.'
           )
-        );
-      } finally {
-        setOperationUserId(
-          null
         );
       }
     };
 
   const handleDelete =
     async (
-      user: UserListItem
-    ) => {
+      user:
+        UserListItem
+    ): Promise<void> => {
       const confirmed =
         window.confirm(
-          `Weet u zeker dat u ${user.email} wilt verwijderen? De bestaande werkorders blijven behouden.`
+          `Weet u zeker dat u ${user.email} wilt verwijderen?\n\nDe gebruiker wordt bewaard in de verwijderde gebruikers.`
         );
 
       if (!confirmed) {
         return;
       }
 
-      clearMessages();
+      setError('');
+      setSuccess('');
 
       try {
-        setOperationUserId(
-          user.id
-        );
-
         await deleteUser(
           user.id
         );
 
         setSuccess(
-          'Gebruiker succesvol verwijderd.'
+          `${user.email} is verwijderd.`
         );
 
         await loadUsers();
@@ -328,26 +390,72 @@ export default function UsersPage() {
         error: unknown
       ) {
         setError(
-          getErrorMessage(
+          getApiMessage(
             error,
             'De gebruiker kon niet worden verwijderd.'
           )
         );
-      } finally {
-        setOperationUserId(
-          null
+      }
+    };
+
+  const handleRestore =
+    async (
+      user:
+        UserListItem
+    ): Promise<void> => {
+      const confirmed =
+        window.confirm(
+          `Wilt u ${user.email} herstellen?`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      setError('');
+      setSuccess('');
+
+      try {
+        await restoreUser(
+          user.id
+        );
+
+        setSuccess(
+          `${user.email} is hersteld.`
+        );
+
+        await loadUsers();
+      } catch (
+        error: unknown
+      ) {
+        setError(
+          getApiMessage(
+            error,
+            'De gebruiker kon niet worden hersteld.'
+          )
         );
       }
     };
 
+  /*
+   * Eerst laden.
+   *
+   * Anders zou currentUser tijdens
+   * de eerste render nog null zijn
+   * en tijdelijk "Geen toegang"
+   * worden weergegeven.
+   */
+  if (loading) {
+    return (
+      <div className="p-8 text-center text-gray-500">
+        Laden...
+      </div>
+    );
+  }
+
   if (
-    !currentUser ||
-    (
-      currentUser.role !==
-        'owner' &&
-      currentUser.role !==
-        'admin'
-    )
+    !isOwner &&
+    !isAdmin
   ) {
     return (
       <div className="p-8 text-center text-red-600">
@@ -358,7 +466,7 @@ export default function UsersPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="mb-6">
           <Link
             to="/werkorders"
@@ -367,379 +475,380 @@ export default function UsersPage() {
             ← Terug naar werkorders
           </Link>
 
-          <h1 className="text-2xl font-bold mt-4 text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 mt-4">
             Gebruikersbeheer
           </h1>
 
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="text-sm text-gray-500 mt-1">
             Beheer gebruikers, rollen en wachtwoorden.
           </p>
         </div>
 
-        <div className="bg-white rounded shadow p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">
-            Nieuwe gebruiker
-          </h2>
-
-          <form
-            onSubmit={
-              handleCreateUser
-            }
-            className="space-y-4"
-          >
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                E-mail
-              </label>
-
-              <input
-                type="email"
-                value={email}
-                onChange={event =>
-                  setEmail(
-                    event.target.value
-                  )
-                }
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Wachtwoord
-              </label>
-
-              <input
-                type="password"
-                value={password}
-                onChange={event =>
-                  setPassword(
-                    event.target.value
-                  )
-                }
-                minLength={8}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                required
-              />
-
-              <p className="text-xs text-gray-500 mt-1">
-                Minimaal 8 tekens.
-              </p>
-            </div>
-
-            {isOwner ? (
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Rol
-                </label>
-
-                <select
-                  value={role}
-                  onChange={event =>
-                    setRole(
-                      event.target.value as
-                        | 'admin'
-                        | 'medewerker'
-                    )
-                  }
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                >
-                  <option value="medewerker">
-                    Medewerker
-                  </option>
-
-                  <option value="admin">
-                    Admin
-                  </option>
-                </select>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Rol
-                </label>
-
-                <div className="w-full border border-gray-200 bg-gray-50 rounded px-3 py-2 text-gray-600">
-                  Medewerker
-                </div>
-
-                <p className="text-xs text-gray-500 mt-1">
-                  Alleen de owner kan nieuwe admins aanmaken.
-                </p>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold px-5 py-2 rounded"
-            >
-              {saving
-                ? 'Opslaan...'
-                : 'Gebruiker aanmaken'}
-            </button>
-          </form>
-        </div>
-
         {error && (
-          <div
-            role="alert"
-            className="mb-4 p-3 bg-red-100 text-red-700 rounded"
-          >
+          <div className="mb-4 p-3 rounded border border-red-200 bg-red-50 text-red-700 text-sm">
             {error}
           </div>
         )}
 
         {success && (
-          <div
-            role="status"
-            className="mb-4 p-3 bg-green-100 text-green-700 rounded"
-          >
+          <div className="mb-4 p-3 rounded border border-green-200 bg-green-50 text-green-700 text-sm">
             {success}
           </div>
         )}
 
-        <div className="bg-white rounded shadow overflow-hidden">
-          <div className="p-4 border-b border-gray-200">
+        <form
+          onSubmit={
+            handleSubmit
+          }
+          className="bg-white border border-gray-200 rounded shadow-sm p-5 mb-5"
+        >
+          <h2 className="font-semibold text-gray-900 mb-4">
+            Nieuwe gebruiker
+          </h2>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">
+              E-mail
+            </label>
+
+            <input
+              type="email"
+              required
+              value={
+                email
+              }
+              onChange={
+                event =>
+                  setEmail(
+                    event.target.value
+                  )
+              }
+              className="w-full border border-gray-300 rounded px-3 py-2"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">
+              Wachtwoord
+            </label>
+
+            <input
+              type="password"
+              required
+              minLength={
+                8
+              }
+              value={
+                password
+              }
+              onChange={
+                event =>
+                  setPassword(
+                    event.target.value
+                  )
+              }
+              className="w-full border border-gray-300 rounded px-3 py-2"
+            />
+
+            <p className="text-xs text-gray-500 mt-1">
+              Minimaal 8 tekens.
+            </p>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">
+              Rol
+            </label>
+
+            <select
+              value={
+                role
+              }
+              onChange={
+                event =>
+                  setRole(
+                    event.target.value as
+                      | 'admin'
+                      | 'medewerker'
+                  )
+              }
+              className="w-full border border-gray-300 rounded px-3 py-2"
+            >
+              <option value="medewerker">
+                Medewerker
+              </option>
+
+              {isOwner && (
+                <option value="admin">
+                  Admin
+                </option>
+              )}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            disabled={
+              saving
+            }
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold px-4 py-2 rounded"
+          >
+            {saving
+              ? 'Aanmaken...'
+              : 'Gebruiker aanmaken'}
+          </button>
+        </form>
+
+        <div className="bg-white border border-gray-200 rounded shadow-sm overflow-hidden">
+          <div className="px-4 py-4 border-b border-gray-200">
             <h2 className="font-semibold text-gray-900">
               Gebruikers
             </h2>
           </div>
 
-          {loading ? (
-            <div className="p-6 text-gray-500">
-              Laden...
+          {users.length ===
+          0 ? (
+            <div className="p-4 text-sm text-gray-500">
+              Geen gebruikers gevonden.
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
-              {users.map(user => {
-                const isCurrentUser =
+            users.map(
+              user => {
+                const isSelf =
                   user.id ===
-                  currentUser.userId;
-
-                const isBusy =
-                  operationUserId ===
-                  user.id;
+                  currentUser?.userId;
 
                 const isTargetOwner =
                   user.role ===
                   'owner';
 
-                const canChangeRole =
-                  isOwner &&
-                  !isCurrentUser &&
-                  !isTargetOwner;
+                const adminCanManage =
+                  isAdmin &&
+                  user.role ===
+                    'medewerker';
 
-                const canDelete =
-                  !isCurrentUser &&
+                const canManage =
+                  !isSelf &&
                   !isTargetOwner &&
                   (
                     isOwner ||
-                    (
-                      currentUser.role ===
-                        'admin' &&
-                      user.role ===
-                        'medewerker'
-                    )
+                    adminCanManage
                   );
-
-                const canResetPassword =
-                  isOwner
-                    ? (
-                        !isTargetOwner ||
-                        isCurrentUser
-                      )
-                    : user.role ===
-                        'medewerker';
 
                 return (
                   <div
-                    key={user.id}
-                    className="p-4"
+                    key={
+                      user.id
+                    }
+                    className="p-4 border-b border-gray-200 last:border-b-0 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
                   >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium text-gray-900">
-                            {user.email}
-                          </p>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-900">
+                          {
+                            user.email
+                          }
+                        </span>
 
-                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-                            {user.role}
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                          {
+                            user.role
+                          }
+                        </span>
+
+                        {isSelf && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                            Uw account
                           </span>
-
-                          {isCurrentUser && (
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                              Uw account
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-sm text-gray-500 mt-1">
-                          Aangemaakt:{' '}
-                          {new Date(
-                            user.created_at
-                          ).toLocaleString(
-                            'nl-NL'
-                          )}
-                        </p>
+                        )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        {canChangeRole ? (
-                          <select
-                            value={
-                              user.role ===
-                              'admin'
-                                ? 'admin'
-                                : 'medewerker'
-                            }
-                            disabled={isBusy}
-                            onChange={event =>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Aangemaakt:{' '}
+                        {
+                          formatDate(
+                            user.created_at
+                          )
+                        }
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {isTargetOwner ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="border border-gray-200 text-gray-500 px-3 py-2 rounded text-sm"
+                        >
+                          owner
+                        </button>
+                      ) : canManage ? (
+                        <select
+                          value={
+                            user.role
+                          }
+                          onChange={
+                            event =>
                               void handleRoleChange(
                                 user,
-                                event.target
+                                event
+                                  .target
                                   .value as
                                   | 'admin'
                                   | 'medewerker'
                               )
-                            }
-                            className="border border-gray-300 rounded px-3 py-2 text-sm"
-                          >
-                            <option value="medewerker">
-                              Medewerker
-                            </option>
+                          }
+                          className="border border-gray-300 rounded px-3 py-2 text-sm"
+                        >
+                          <option value="medewerker">
+                            Medewerker
+                          </option>
 
+                          {isOwner && (
                             <option value="admin">
                               Admin
                             </option>
-                          </select>
-                        ) : (
-                          <span className="border border-gray-200 bg-gray-50 text-gray-500 rounded px-3 py-2 text-sm">
-                            {user.role}
-                          </span>
-                        )}
-
+                          )}
+                        </select>
+                      ) : (
                         <button
                           type="button"
-                          disabled={
-                            isBusy ||
-                            !canResetPassword
+                          disabled
+                          className="border border-gray-200 text-gray-400 px-3 py-2 rounded text-sm"
+                        >
+                          {
+                            user.role
                           }
-                          onClick={() => {
-                            clearMessages();
+                        </button>
+                      )}
 
-                            if (
-                              resetUserId ===
-                              user.id
-                            ) {
-                              setResetUserId(
-                                null
-                              );
-
-                              setNewPassword(
-                                ''
-                              );
-                            } else {
-                              setResetUserId(
-                                user.id
-                              );
-
-                              setNewPassword(
-                                ''
-                              );
-                            }
-                          }}
-                          className="border border-gray-300 hover:bg-gray-50 disabled:border-gray-200 disabled:text-gray-400 px-3 py-2 rounded text-sm"
+                      {(
+                        canManage ||
+                        isSelf
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handlePasswordChange(
+                              user
+                            )
+                          }
+                          className="border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded text-sm"
                         >
                           Wachtwoord wijzigen
                         </button>
+                      )}
 
+                      {canManage ? (
                         <button
                           type="button"
-                          disabled={
-                            isBusy ||
-                            !canDelete
-                          }
                           onClick={() =>
                             void handleDelete(
                               user
                             )
                           }
-                          className="border border-red-300 text-red-700 hover:bg-red-50 disabled:border-gray-200 disabled:text-gray-400 px-3 py-2 rounded text-sm"
+                          className="border border-red-300 text-red-600 hover:bg-red-50 px-3 py-2 rounded text-sm"
                         >
                           Verwijderen
                         </button>
-                      </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          className="border border-gray-200 text-gray-400 px-3 py-2 rounded text-sm"
+                        >
+                          Verwijderen
+                        </button>
+                      )}
                     </div>
-
-                    {resetUserId ===
-                      user.id &&
-                      canResetPassword && (
-                      <div className="mt-4 bg-gray-50 border border-gray-200 rounded p-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Nieuw wachtwoord voor{' '}
-                          {user.email}
-                        </label>
-
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <input
-                            type="password"
-                            value={
-                              newPassword
-                            }
-                            onChange={event =>
-                              setNewPassword(
-                                event.target.value
-                              )
-                            }
-                            minLength={8}
-                            placeholder="Minimaal 8 tekens"
-                            className="flex-1 border border-gray-300 rounded px-3 py-2"
-                          />
-
-                          <button
-                            type="button"
-                            disabled={
-                              isBusy ||
-                              newPassword.length <
-                                8
-                            }
-                            onClick={() =>
-                              void handlePasswordReset(
-                                user.id
-                              )
-                            }
-                            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium px-4 py-2 rounded"
-                          >
-                            Nieuw wachtwoord opslaan
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setResetUserId(
-                                null
-                              );
-
-                              setNewPassword(
-                                ''
-                              );
-                            }}
-                            className="border border-gray-300 px-4 py-2 rounded"
-                          >
-                            Annuleren
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
-              })}
-            </div>
+              }
+            )
           )}
         </div>
+
+        {isOwner && (
+          <div className="bg-white border border-gray-200 rounded shadow-sm overflow-hidden mt-6">
+            <div className="px-4 py-4 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-900">
+                Verwijderde gebruikers
+              </h2>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Verwijderde accounts en hun verwijderdatum.
+              </p>
+            </div>
+
+            {deletedUsers.length ===
+            0 ? (
+              <div className="p-4 text-sm text-gray-500">
+                Geen verwijderde gebruikers.
+              </div>
+            ) : (
+              deletedUsers.map(
+                user => (
+                  <div
+                    key={
+                      user.id
+                    }
+                    className="p-4 border-b border-gray-200 last:border-b-0 flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gray-50/50"
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-700">
+                          {
+                            user.email
+                          }
+                        </span>
+
+                        <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
+                          {
+                            user.role
+                          }
+                        </span>
+
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
+                          Verwijderd
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-gray-500 mt-2">
+                        Aangemaakt:{' '}
+                        {
+                          formatDate(
+                            user.created_at
+                          )
+                        }
+                      </p>
+
+                      <p className="text-xs text-red-600 mt-1">
+                        Verwijderd:{' '}
+                        {
+                          formatDate(
+                            user.deleted_at
+                          )
+                        }
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleRestore(
+                          user
+                        )
+                      }
+                      className="border border-blue-300 text-blue-600 hover:bg-blue-50 px-3 py-2 rounded text-sm"
+                    >
+                      Herstellen
+                    </button>
+                  </div>
+                )
+              )
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

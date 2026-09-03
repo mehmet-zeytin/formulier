@@ -14,9 +14,9 @@ import {
 } from '../services/werkorderService';
 
 import {
-  getCurrentUser,
-  isAuthenticated,
-  logout
+  getCurrentUserFromServer,
+  logout,
+  type CurrentUserResponse
 } from '../services/authService';
 
 import type {
@@ -59,31 +59,51 @@ export default function WerkordersPage() {
     setError
   ] = useState('');
 
+  const [
+    currentUser,
+    setCurrentUser
+  ] =
+    useState<CurrentUserResponse | null>(
+      null
+    );
+
   const navigate =
     useNavigate();
 
-  const currentUser =
-    getCurrentUser();
-
   useEffect(() => {
-    if (!isAuthenticated()) {
-      navigate(
-        '/login',
-        {
-          replace: true
-        }
-      );
-
-      return;
-    }
+    let active =
+      true;
 
     const fetchWerkorders =
       async () => {
         try {
           setError('');
 
+          /*
+           * Actuele gebruiker ophalen
+           * via de backend.
+           *
+           * Hierdoor gebruiken we niet
+           * meer de mogelijk verouderde
+           * rol uit het JWT.
+           */
+          const currentUserData =
+            await getCurrentUserFromServer();
+
+          if (!active) {
+            return;
+          }
+
+          setCurrentUser(
+            currentUserData
+          );
+
           const data =
             await getAllWerkorders();
+
+          if (!active) {
+            return;
+          }
 
           setWerkorders(
             data
@@ -91,6 +111,10 @@ export default function WerkordersPage() {
         } catch (
           error: unknown
         ) {
+          if (!active) {
+            return;
+          }
+
           const status =
             typeof error ===
               'object' &&
@@ -122,11 +146,20 @@ export default function WerkordersPage() {
             'Werkorders konden niet worden geladen.'
           );
         } finally {
-          setLoading(false);
+          if (active) {
+            setLoading(
+              false
+            );
+          }
         }
       };
 
     void fetchWerkorders();
+
+    return () => {
+      active =
+        false;
+    };
   }, [navigate]);
 
   const filteredWerkorders =
@@ -206,6 +239,7 @@ export default function WerkordersPage() {
   const clearFilters =
     (): void => {
       setSearchQuery('');
+
       setStatusFilter(
         'alle'
       );
@@ -302,9 +336,7 @@ export default function WerkordersPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
       <div className="max-w-4xl mx-auto">
-
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-6">
-
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
               Werkorders
@@ -331,7 +363,6 @@ export default function WerkordersPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-
             <Link
               to="/werkorders/new"
               className="text-sm text-blue-600 hover:text-blue-800 underline"
@@ -348,7 +379,6 @@ export default function WerkordersPage() {
             >
               Uitloggen
             </button>
-
           </div>
         </div>
 
@@ -363,7 +393,6 @@ export default function WerkordersPage() {
 
         <div className="bg-white rounded shadow p-4 mb-4">
           <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3">
-
             <div>
               <label
                 htmlFor="werkorder-search"
@@ -448,7 +477,6 @@ export default function WerkordersPage() {
                 Filters wissen
               </button>
             </div>
-
           </div>
 
           <div className="mt-3 text-sm text-gray-500">
@@ -460,7 +488,6 @@ export default function WerkordersPage() {
         </div>
 
         <div className="bg-white rounded shadow divide-y divide-gray-200 overflow-hidden">
-
           {werkorders.length ===
             0 && (
             <div className="p-6 text-center text-gray-500">
@@ -503,7 +530,6 @@ export default function WerkordersPage() {
                 className="block p-4 hover:bg-gray-50 transition"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-
                   <div>
                     <p className="font-semibold text-gray-900">
                       {
@@ -553,12 +579,10 @@ export default function WerkordersPage() {
                       werkorder
                     )}
                   </span>
-
                 </div>
               </Link>
             )
           )}
-
         </div>
       </div>
     </div>

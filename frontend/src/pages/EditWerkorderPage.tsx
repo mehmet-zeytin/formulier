@@ -10,7 +10,8 @@ import {
   useParams
 } from 'react-router-dom';
 
-import WerkorderForm from '../components/WerkorderForm';
+import WerkorderForm
+  from '../components/WerkorderForm';
 
 import {
   getWerkorderDetail
@@ -36,11 +37,15 @@ export default function EditWerkorderPage() {
     WerkorderDetail | null
   >(null);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading
+  ] = useState(true);
 
-  const [error, setError] =
-    useState('');
+  const [
+    error,
+    setError
+  ] = useState('');
 
   useEffect(() => {
     const loadDraft =
@@ -84,10 +89,13 @@ export default function EditWerkorderPage() {
                       status?: number;
                     };
                   }
-                ).response?.status
+                ).response
+                  ?.status
               : undefined;
 
-          if (status === 401) {
+          if (
+            status === 401
+          ) {
             navigate(
               '/login',
               {
@@ -98,7 +106,9 @@ export default function EditWerkorderPage() {
             return;
           }
 
-          if (status === 403) {
+          if (
+            status === 403
+          ) {
             setError(
               'U heeft geen toegang tot deze werkorder.'
             );
@@ -106,7 +116,9 @@ export default function EditWerkorderPage() {
             return;
           }
 
-          if (status === 404) {
+          if (
+            status === 404
+          ) {
             setError(
               'Werkorder niet gevonden.'
             );
@@ -123,7 +135,10 @@ export default function EditWerkorderPage() {
       };
 
     void loadDraft();
-  }, [id, navigate]);
+  }, [
+    id,
+    navigate
+  ]);
 
   if (loading) {
     return (
@@ -171,6 +186,15 @@ export default function EditWerkorderPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-2xl mx-auto mb-4">
+        <Link
+          to={`/werkorders/${detail.id}`}
+          className="text-blue-600 hover:underline text-sm"
+        >
+          ← Terug naar concept
+        </Link>
+      </div>
+
       <WerkorderForm
         initialDetail={
           detail

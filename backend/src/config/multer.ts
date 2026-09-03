@@ -1,36 +1,135 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 
-const uploadDir = path.join(__dirname, '../../uploads');
+const uploadDir = path.join(
+  __dirname,
+  '../../uploads'
+);
 
-// Maak de map 'uploads' automatisch aan als deze niet bestaat
+/*
+ * Uploadmap automatisch aanmaken
+ * als deze nog niet bestaat.
+ */
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+  fs.mkdirSync(
+    uploadDir,
+    {
+      recursive: true
+    }
+  );
 }
 
+/*
+ * Alleen deze MIME-types
+ * zijn toegestaan.
+ *
+ * LET OP:
+ * MIME-type alleen is niet voldoende
+ * als beveiligingscontrole.
+ *
+ * De echte bestandsinhoud wordt
+ * later in FotoController gecontroleerd.
+ */
+const allowedMimeTypes: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp'
+};
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
+  destination: (
+    req,
+    file,
+    cb
+  ) => {
+    cb(
+      null,
+      uploadDir
+    );
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `foto-${uniqueSuffix}${ext}`);
+
+  filename: (
+    req,
+    file,
+    cb
+  ) => {
+    const extension =
+      allowedMimeTypes[file.mimetype];
+
+    if (!extension) {
+      cb(
+        new Error(
+          'Ongeldig bestandstype.'
+        ),
+        ''
+      );
+
+      return;
+    }
+
+    /*
+     * Cryptografisch willekeurige
+     * bestandsnaam.
+     *
+     * De oorspronkelijke bestandsnaam
+     * wordt nooit gebruikt.
+     */
+    const randomName = crypto
+      .randomBytes(16)
+      .toString('hex');
+
+    cb(
+      null,
+      `foto-${randomName}${extension}`
+    );
   }
 });
 
-const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-  if (allowedTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Alleen afbeeldingen in JPEG, PNG of WEBP formaat kunnen worden geüpload'));
+const fileFilter: multer.Options['fileFilter'] = (
+  req,
+  file,
+  cb
+) => {
+  if (
+    Object.prototype.hasOwnProperty.call(
+      allowedMimeTypes,
+      file.mimetype
+    )
+  ) {
+    cb(
+      null,
+      true
+    );
+
+    return;
   }
+
+  cb(
+    new Error(
+      'Alleen afbeeldingen in JPEG, PNG of WEBP formaat kunnen worden geüpload.'
+    )
+  );
 };
 
 export const upload = multer({
   storage,
+
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+
+  limits: {
+    /*
+     * Maximaal 5 MB per foto.
+     */
+    fileSize:
+      5 *
+      1024 *
+      1024,
+
+    /*
+     * Slechts één bestand.
+     */
+    files: 1
+  }
 });

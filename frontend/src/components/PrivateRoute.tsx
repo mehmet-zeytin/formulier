@@ -1,3 +1,8 @@
+import {
+  useEffect,
+  useState
+} from 'react';
+
 import type {
   ReactNode
 } from 'react';
@@ -7,7 +12,8 @@ import {
 } from 'react-router-dom';
 
 import {
-  getCurrentUser,
+  getCurrentUserFromServer,
+  type CurrentUserResponse,
   type UserRole
 } from '../services/authService';
 
@@ -20,10 +26,80 @@ export default function PrivateRoute({
   children,
   allowedRoles
 }: PrivateRouteProps) {
-  const user =
-    getCurrentUser();
+  const [
+    user,
+    setUser
+  ] =
+    useState<CurrentUserResponse | null>(
+      null
+    );
 
-  if (!user) {
+  const [
+    loading,
+    setLoading
+  ] =
+    useState(true);
+
+  const [
+    unauthorized,
+    setUnauthorized
+  ] =
+    useState(false);
+
+  useEffect(() => {
+    let active =
+      true;
+
+    const loadUser =
+      async () => {
+        try {
+          const currentUser =
+            await getCurrentUserFromServer();
+
+          if (!active) {
+            return;
+          }
+
+          setUser(
+            currentUser
+          );
+        } catch {
+          if (!active) {
+            return;
+          }
+
+          setUnauthorized(
+            true
+          );
+        } finally {
+          if (active) {
+            setLoading(
+              false
+            );
+          }
+        }
+      };
+
+    void loadUser();
+
+    return () => {
+      active =
+        false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="p-8 text-center text-gray-500">
+        Laden...
+      </div>
+    );
+  }
+
+  if (
+    unauthorized ||
+    !user
+  ) {
     return (
       <Navigate
         to="/login"
@@ -46,5 +122,9 @@ export default function PrivateRoute({
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+    </>
+  );
 }

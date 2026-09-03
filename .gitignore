@@ -1,9 +1,20 @@
 node_modules/
+
 dist/
 
 backend/.env
 frontend/.env
 .env
 
+frontend/dist/
+backend/dist/
+
+backups/
 database-backups/
+
 backend/uploads/
+
+temp_restore/
+restore_selected_photo/
+commando.txt
+frontend/.env.development

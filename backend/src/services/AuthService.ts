@@ -1,9 +1,16 @@
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import bcrypt
+  from 'bcrypt';
+
+import jwt
+  from 'jsonwebtoken';
 
 import {
   UserRepository
 } from '../repositories/UserRepository';
+
+import {
+  WerkorderRepository
+} from '../repositories/WerkorderRepository';
 
 import type {
   UserRole
@@ -13,34 +20,54 @@ export interface AuthTokenPayload {
   userId: number;
   email: string;
   role: UserRole;
+  tokenVersion: number;
 }
+const BCRYPT_ROUNDS =
+  12;
+
+const DUMMY_PASSWORD_HASH =
+  bcrypt.hashSync(
+    'dummy-password-for-timing-check',
+    BCRYPT_ROUNDS
+  );
 
 export class AuthService {
   private userRepo =
     new UserRepository();
 
+  private werkorderRepo =
+    new WerkorderRepository();
+
   async login(
     email: string,
     password: string
   ): Promise<string> {
-    const user =
-      await this.userRepo.findByEmail(
-        email
-      );
+    const normalizedEmail =
+      email
+        .trim()
+        .toLowerCase();
 
-    if (!user) {
-      throw new Error(
-        'E-mail of wachtwoord is onjuist.'
-      );
-    }
+    const user =
+      await this.userRepo
+        .findActiveByEmail(
+          normalizedEmail
+        );
+
+    const passwordHash =
+      user
+        ?.password_hash ??
+      DUMMY_PASSWORD_HASH;
 
     const isPasswordValid =
       await bcrypt.compare(
         password,
-        user.password_hash
+        passwordHash
       );
 
-    if (!isPasswordValid) {
+    if (
+      !user ||
+      !isPasswordValid
+    ) {
       throw new Error(
         'E-mail of wachtwoord is onjuist.'
       );
@@ -57,30 +84,102 @@ export class AuthService {
 
     const payload:
       AuthTokenPayload = {
-        userId: user.id,
-        email: user.email,
-        role: user.role
+        userId:
+          user.id,
+
+        email:
+          user.email,
+
+        role:
+          user.role,
+
+        tokenVersion:
+          user.token_version
       };
 
     return jwt.sign(
       payload,
       jwtSecret,
       {
-        expiresIn: '8h'
+        expiresIn:
+          '8h'
       }
     );
   }
 
-  async getUsers() {
-    return this.userRepo.findAll();
+  async getUsers(
+    requesterRole: UserRole
+  ) {
+    if (
+      requesterRole !== 'owner' &&
+      requesterRole !== 'admin'
+    ) {
+      throw new Error(
+        'U heeft geen toestemming om gebruikers te bekijken.'
+      );
+    }
+
+    const users =
+      await this.userRepo
+        .findAllActive();
+
+    if (
+      requesterRole === 'owner'
+    ) {
+      return users;
+    }
+
+    /*
+     * Admin ziet owner wel,
+     * maar frontend kan deze
+     * niet aanpassen.
+     */
+    return users;
+  }
+
+  async getDeletedUsers(
+    requesterRole: UserRole
+  ) {
+    if (
+      requesterRole !== 'owner'
+    ) {
+      throw new Error(
+        'Alleen de owner kan verwijderde gebruikers bekijken.'
+      );
+    }
+
+    return this.userRepo
+      .findAllDeleted();
   }
 
   async createUser(
     email: string,
     password: string,
-    role: UserRole,
-    actorRole: UserRole
+
+    role:
+      | 'admin'
+      | 'medewerker',
+
+    requesterRole: UserRole
   ): Promise<number> {
+    if (
+      requesterRole !== 'owner' &&
+      requesterRole !== 'admin'
+    ) {
+      throw new Error(
+        'U heeft geen toestemming om gebruikers aan te maken.'
+      );
+    }
+
+    if (
+      requesterRole === 'admin' &&
+      role !== 'medewerker'
+    ) {
+      throw new Error(
+        'Een admin kan alleen medewerkers aanmaken.'
+      );
+    }
+
     const normalizedEmail =
       email
         .trim()
@@ -92,7 +191,9 @@ export class AuthService {
       );
     }
 
-    if (!password) {
+    if (
+      !password
+    ) {
       throw new Error(
         'Het wachtwoord is verplicht.'
       );
@@ -106,19 +207,6 @@ export class AuthService {
       );
     }
 
-    /*
-     * Een owner-account mag niet
-     * via gebruikersbeheer worden
-     * aangemaakt.
-     */
-    if (
-      role === 'owner'
-    ) {
-      throw new Error(
-        'Een owner-account kan niet via gebruikersbeheer worden aangemaakt.'
-      );
-    }
-
     if (
       role !== 'admin' &&
       role !== 'medewerker'
@@ -128,34 +216,21 @@ export class AuthService {
       );
     }
 
-    /*
-     * Een normale admin mag
-     * alleen medewerkers aanmaken.
-     */
-    if (
-      actorRole === 'admin' &&
-      role !== 'medewerker'
-    ) {
-      throw new Error(
-        'Alleen de owner kan nieuwe admins aanmaken.'
-      );
-    }
-
-    if (
-      actorRole !== 'owner' &&
-      actorRole !== 'admin'
-    ) {
-      throw new Error(
-        'U heeft geen toestemming om gebruikers aan te maken.'
-      );
-    }
-
     const existingUser =
-      await this.userRepo.findByEmail(
-        normalizedEmail
-      );
+      await this.userRepo
+        .findByEmail(
+          normalizedEmail
+        );
 
     if (existingUser) {
+      if (
+        existingUser.is_deleted
+      ) {
+        throw new Error(
+          'Er bestaat een verwijderde gebruiker met dit e-mailadres. Herstel deze gebruiker in plaats van een nieuwe aan te maken.'
+        );
+      }
+
       throw new Error(
         'Er bestaat al een gebruiker met dit e-mailadres.'
       );
@@ -167,91 +242,174 @@ export class AuthService {
         12
       );
 
-    return this.userRepo.create(
-      normalizedEmail,
-      passwordHash,
-      role
-    );
+    return this.userRepo
+      .create(
+        normalizedEmail,
+        passwordHash,
+        role
+      );
   }
 
-  async resetUserPassword(
+  async changeUserRole(
     targetUserId: number,
-    actorUserId: number,
-    actorRole: UserRole,
-    newPassword: string
-  ): Promise<void> {
-    const targetUser =
-      await this.userRepo.findById(
-        targetUserId
-      );
 
-    if (!targetUser) {
+    newRole:
+      | 'admin'
+      | 'medewerker',
+
+    requesterId: number,
+    requesterRole: UserRole
+  ): Promise<void> {
+    if (
+      requesterRole !== 'owner' &&
+      requesterRole !== 'admin'
+    ) {
+      throw new Error(
+        'U heeft geen toestemming om gebruikersrollen te wijzigen.'
+      );
+    }
+
+    const targetUser =
+      await this.userRepo
+        .findById(
+          targetUserId
+        );
+
+    if (
+      !targetUser ||
+      targetUser.is_deleted
+    ) {
       throw new Error(
         'Gebruiker niet gevonden.'
       );
     }
 
     if (
-      actorRole === 'medewerker'
+      targetUser.id ===
+      requesterId
+    ) {
+      throw new Error(
+        'U kunt uw eigen rol niet wijzigen.'
+      );
+    }
+
+    if (
+      targetUser.role ===
+      'owner'
+    ) {
+      throw new Error(
+        'De rol van de owner kan niet worden gewijzigd.'
+      );
+    }
+
+    if (
+      newRole !== 'admin' &&
+      newRole !== 'medewerker'
+    ) {
+      throw new Error(
+        'Ongeldige gebruikersrol.'
+      );
+    }
+
+    if (
+      requesterRole ===
+        'admin' &&
+      (
+        targetUser.role !==
+          'medewerker' ||
+        newRole !==
+          'medewerker'
+      )
+    ) {
+      throw new Error(
+        'Een admin kan alleen medewerkers beheren.'
+      );
+    }
+
+    const updated =
+      await this.userRepo
+        .updateRole(
+          targetUserId,
+          newRole
+        );
+
+    if (!updated) {
+      throw new Error(
+        'De gebruikersrol kon niet worden gewijzigd.'
+      );
+    }
+  }
+
+  async changeUserPassword(
+    targetUserId: number,
+    password: string,
+
+    requesterId: number,
+    requesterRole: UserRole
+  ): Promise<void> {
+    if (
+      requesterRole !== 'owner' &&
+      requesterRole !== 'admin'
     ) {
       throw new Error(
         'U heeft geen toestemming om wachtwoorden te wijzigen.'
       );
     }
 
-    /*
-     * Een normale admin mag alleen
-     * medewerkers beheren.
-     */
     if (
-      actorRole === 'admin' &&
-      targetUser.role !==
-        'medewerker'
-    ) {
-      throw new Error(
-        'Een admin kan alleen het wachtwoord van een medewerker wijzigen.'
-      );
-    }
-
-    /*
-     * Het owner-account mag niet
-     * door een andere gebruiker
-     * worden gewijzigd.
-     */
-    if (
-      targetUser.role ===
-        'owner' &&
-      actorUserId !==
-        targetUser.id
-    ) {
-      throw new Error(
-        'Het owner-account kan niet door een andere gebruiker worden gewijzigd.'
-      );
-    }
-
-    if (!newPassword) {
-      throw new Error(
-        'Het nieuwe wachtwoord is verplicht.'
-      );
-    }
-
-    if (
-      newPassword.length < 8
+      password.length < 8
     ) {
       throw new Error(
         'Het wachtwoord moet minimaal 8 tekens bevatten.'
       );
     }
 
+    const targetUser =
+      await this.userRepo
+        .findById(
+          targetUserId
+        );
+
+    if (
+      !targetUser ||
+      targetUser.is_deleted
+    ) {
+      throw new Error(
+        'Gebruiker niet gevonden.'
+      );
+    }
+
+    if (
+      requesterRole ===
+        'admin' &&
+      targetUser.role !==
+        'medewerker'
+    ) {
+      throw new Error(
+        'Een admin kan alleen het wachtwoord van medewerkers wijzigen.'
+      );
+    }
+
+    if (
+      targetUser.role ===
+        'owner' &&
+      targetUser.id !==
+        requesterId
+    ) {
+      throw new Error(
+        'Het wachtwoord van de owner kan niet door een andere gebruiker worden gewijzigd.'
+      );
+    }
+
     const passwordHash =
       await bcrypt.hash(
-        newPassword,
+        password,
         12
       );
 
     const updated =
       await this.userRepo
-        .updatePasswordHash(
+        .updatePassword(
           targetUserId,
           passwordHash
         );
@@ -263,145 +421,56 @@ export class AuthService {
     }
   }
 
-  async changeUserRole(
-    targetUserId: number,
-    newRole: UserRole,
-    actorUserId: number,
-    actorRole: UserRole
-  ): Promise<void> {
-    /*
-     * Alleen de owner mag
-     * rollen wijzigen.
-     */
-    if (
-      actorRole !== 'owner'
-    ) {
-      throw new Error(
-        'Alleen de owner kan gebruikersrollen wijzigen.'
-      );
-    }
-
-    /*
-     * Owner is geen rol die via
-     * gebruikersbeheer toegewezen
-     * mag worden.
-     */
-    if (
-      newRole !== 'admin' &&
-      newRole !== 'medewerker'
-    ) {
-      throw new Error(
-        'Een gebruiker kan alleen de rol admin of medewerker krijgen.'
-      );
-    }
-
-    const targetUser =
-      await this.userRepo.findById(
-        targetUserId
-      );
-
-    if (!targetUser) {
-      throw new Error(
-        'Gebruiker niet gevonden.'
-      );
-    }
-
-    /*
-     * Het owner-account blijft
-     * permanent owner.
-     */
-    if (
-      targetUser.role ===
-      'owner'
-    ) {
-      throw new Error(
-        'De rol van het owner-account kan niet worden gewijzigd.'
-      );
-    }
-
-    if (
-      targetUserId ===
-      actorUserId
-    ) {
-      throw new Error(
-        'U kunt uw eigen rol niet wijzigen.'
-      );
-    }
-
-    if (
-      targetUser.role ===
-      newRole
-    ) {
-      return;
-    }
-
-    const updated =
-      await this.userRepo.updateRole(
-        targetUserId,
-        newRole
-      );
-
-    if (!updated) {
-      throw new Error(
-        'De gebruikersrol kon niet worden gewijzigd.'
-      );
-    }
-  }
-
   async deleteUser(
     targetUserId: number,
-    actorUserId: number,
-    actorRole: UserRole
+    requesterId: number,
+    requesterRole: UserRole
   ): Promise<void> {
-    const targetUser =
-      await this.userRepo.findById(
-        targetUserId
-      );
-
-    if (!targetUser) {
-      throw new Error(
-        'Gebruiker niet gevonden.'
-      );
-    }
-
     if (
-      targetUserId ===
-      actorUserId
-    ) {
-      throw new Error(
-        'U kunt uw eigen account niet verwijderen.'
-      );
-    }
-
-    /*
-     * Owner kan nooit verwijderd
-     * worden via gebruikersbeheer.
-     */
-    if (
-      targetUser.role ===
-      'owner'
-    ) {
-      throw new Error(
-        'Het owner-account kan niet worden verwijderd.'
-      );
-    }
-
-    if (
-      actorRole ===
-      'medewerker'
+      requesterRole !== 'owner' &&
+      requesterRole !== 'admin'
     ) {
       throw new Error(
         'U heeft geen toestemming om gebruikers te verwijderen.'
       );
     }
 
-    /*
-     * Een normale admin mag
-     * uitsluitend medewerkers
-     * verwijderen.
-     */
     if (
-      actorRole === 'admin' &&
+      targetUserId ===
+      requesterId
+    ) {
+      throw new Error(
+        'U kunt uw eigen account niet verwijderen.'
+      );
+    }
+
+    const targetUser =
+      await this.userRepo
+        .findById(
+          targetUserId
+        );
+
+    if (
+      !targetUser ||
+      targetUser.is_deleted
+    ) {
+      throw new Error(
+        'Gebruiker niet gevonden.'
+      );
+    }
+
+    if (
+      targetUser.role ===
+      'owner'
+    ) {
+      throw new Error(
+        'De owner kan niet worden verwijderd.'
+      );
+    }
+
+    if (
+      requesterRole ===
+        'admin' &&
       targetUser.role !==
         'medewerker'
     ) {
@@ -410,14 +479,74 @@ export class AuthService {
       );
     }
 
-    const deleted =
-      await this.userRepo.deleteById(
-        targetUserId
+    /*
+    * Controleer eerst of deze
+    * gebruiker nog verantwoordelijk
+    * is voor openstaande concepten.
+    */
+    const hasOpenDrafts =
+      await this.werkorderRepo
+        .hasOpenDraftsAssignedToUser(
+          targetUserId
+        );
+
+    if (
+      hasOpenDrafts
+    ) {
+      throw new Error(
+        'Deze gebruiker kan niet worden verwijderd omdat er nog openstaande concepten aan deze gebruiker zijn toegewezen. Draag deze concepten eerst over aan een andere gebruiker.'
       );
+    }
+
+    const deleted =
+      await this.userRepo
+        .softDelete(
+          targetUserId
+        );
 
     if (!deleted) {
       throw new Error(
         'De gebruiker kon niet worden verwijderd.'
+      );
+    }
+  }
+
+  async restoreUser(
+    targetUserId: number,
+    requesterRole: UserRole
+  ): Promise<void> {
+    if (
+      requesterRole !== 'owner'
+    ) {
+      throw new Error(
+        'Alleen de owner kan verwijderde gebruikers herstellen.'
+      );
+    }
+
+    const targetUser =
+      await this.userRepo
+        .findById(
+          targetUserId
+        );
+
+    if (
+      !targetUser ||
+      !targetUser.is_deleted
+    ) {
+      throw new Error(
+        'Verwijderde gebruiker niet gevonden.'
+      );
+    }
+
+    const restored =
+      await this.userRepo
+        .restore(
+          targetUserId
+        );
+
+    if (!restored) {
+      throw new Error(
+        'De gebruiker kon niet worden hersteld.'
       );
     }
   }

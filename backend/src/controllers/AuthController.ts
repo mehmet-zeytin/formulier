@@ -7,41 +7,22 @@ import {
   AuthService
 } from '../services/AuthService';
 
-import {
+import type {
   AuthRequest
 } from '../middleware/authMiddleware';
+
+const AUTH_COOKIE_NAME =
+  'auth_token';
+
+const AUTH_COOKIE_MAX_AGE =
+  8 *
+  60 *
+  60 *
+  1000;
 
 export class AuthController {
   private authService =
     new AuthService();
-
-  private canManageUsers(
-    req: AuthRequest,
-    res: Response
-  ): boolean {
-    if (!req.user) {
-      res.status(401).json({
-        message:
-          'U moet ingelogd zijn.'
-      });
-
-      return false;
-    }
-
-    if (
-      req.user.role !== 'owner' &&
-      req.user.role !== 'admin'
-    ) {
-      res.status(403).json({
-        message:
-          'U heeft geen toegang tot gebruikersbeheer.'
-      });
-
-      return false;
-    }
-
-    return true;
-  }
 
   login = async (
     req: Request,
@@ -71,16 +52,45 @@ export class AuthController {
 
       const token =
         await this.authService.login(
-          email
-            .trim()
-            .toLowerCase(),
+          email,
           password
         );
 
+      /*
+      * JWT wordt alleen als
+      * HttpOnly-cookie opgeslagen.
+      *
+      * JavaScript in de frontend
+      * kan deze cookie niet uitlezen.
+      */
+      res.cookie(
+        AUTH_COOKIE_NAME,
+        token,
+        {
+          httpOnly: true,
+
+          secure:
+            process.env.NODE_ENV ===
+            'production',
+
+          sameSite:
+            'lax',
+
+          maxAge:
+            AUTH_COOKIE_MAX_AGE,
+
+          path:
+            '/'
+        }
+      );
+
+      /*
+      * JWT wordt bewust NIET
+      * teruggestuurd naar de frontend.
+      */
       res.status(200).json({
         message:
-          'Inloggen succesvol.',
-        token
+          'Inloggen succesvol.'
       });
     } catch (
       error: unknown
@@ -96,22 +106,82 @@ export class AuthController {
     }
   };
 
+  logout = (
+    req: Request,
+    res: Response
+  ): void => {
+    /*
+     * Dezelfde relevante cookie-
+     * eigenschappen gebruiken bij
+     * het verwijderen.
+     */
+    res.clearCookie(
+      AUTH_COOKIE_NAME,
+      {
+        httpOnly:
+          true,
+
+        secure:
+          process.env.NODE_ENV ===
+          'production',
+
+        sameSite:
+          'lax',
+
+        path:
+          '/'
+      }
+    );
+
+    res.status(200).json({
+      message:
+        'Uitloggen succesvol.'
+    });
+  };
+
+  me = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({
+        message:
+          'U moet ingelogd zijn.'
+      });
+
+      return;
+    }
+
+    res.status(200).json({
+      userId:
+        req.user.userId,
+
+      email:
+        req.user.email,
+
+      role:
+        req.user.role
+    });
+  };
+
   getUsers = async (
     req: AuthRequest,
     res: Response
   ): Promise<void> => {
-    if (
-      !this.canManageUsers(
-        req,
-        res
-      )
-    ) {
-      return;
-    }
-
     try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
       const users =
-        await this.authService.getUsers();
+        await this.authService.getUsers(
+          req.user.role
+        );
 
       res.status(200).json(
         users
@@ -124,7 +194,44 @@ export class AuthController {
           ? error.message
           : 'Gebruikers konden niet worden geladen.';
 
-      res.status(500).json({
+      res.status(403).json({
+        message
+      });
+    }
+  };
+
+  getDeletedUsers = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
+      const users =
+        await this.authService
+          .getDeletedUsers(
+            req.user.role
+          );
+
+      res.status(200).json(
+        users
+      );
+    } catch (
+      error: unknown
+    ) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Verwijderde gebruikers konden niet worden geladen.';
+
+      res.status(403).json({
         message
       });
     }
@@ -134,16 +241,16 @@ export class AuthController {
     req: AuthRequest,
     res: Response
   ): Promise<void> => {
-    if (
-      !this.canManageUsers(
-        req,
-        res
-      )
-    ) {
-      return;
-    }
-
     try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
       const {
         email,
         password,
@@ -169,17 +276,20 @@ export class AuthController {
       }
 
       const userId =
-        await this.authService.createUser(
-          email,
-          password,
-          role,
-          req.user!.role
-        );
+        await this.authService
+          .createUser(
+            email,
+            password,
+            role,
+            req.user.role
+          );
 
       res.status(201).json({
         message:
           'Gebruiker succesvol aangemaakt.',
-        id: userId
+
+        id:
+          userId
       });
     } catch (
       error: unknown
@@ -189,118 +299,28 @@ export class AuthController {
           ? error.message
           : 'De gebruiker kon niet worden aangemaakt.';
 
-      let status = 400;
-
-      if (
-        message ===
-        'Er bestaat al een gebruiker met dit e-mailadres.'
-      ) {
-        status = 409;
-      }
+      let status =
+        400;
 
       if (
         message.includes(
-          'geen toestemming'
-        ) ||
-        message.includes(
-          'Alleen de owner'
+          'bestaat'
         )
       ) {
-        status = 403;
+        status =
+          409;
       }
 
-      res.status(status).json({
-        message
-      });
-    }
-  };
-
-  resetPassword = async (
-    req: AuthRequest,
-    res: Response
-  ): Promise<void> => {
-    if (
-      !this.canManageUsers(
-        req,
-        res
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const userId =
-        Number(req.params.id);
-
       if (
-        !Number.isInteger(
-          userId
-        ) ||
-        userId <= 0
-      ) {
-        res.status(400).json({
-          message:
-            'Er is een geldig gebruikers-ID vereist.'
-        });
-
-        return;
-      }
-
-      const {
-        password
-      } = req.body;
-
-      if (
-        typeof password !==
-        'string'
-      ) {
-        res.status(400).json({
-          message:
-            'Het nieuwe wachtwoord is verplicht.'
-        });
-
-        return;
-      }
-
-      await this.authService
-        .resetUserPassword(
-          userId,
-          req.user!.userId,
-          req.user!.role,
-          password
-        );
-
-      res.status(200).json({
-        message:
-          'Wachtwoord succesvol gewijzigd.'
-      });
-    } catch (
-      error: unknown
-    ) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Het wachtwoord kon niet worden gewijzigd.';
-
-      let status = 400;
-
-      if (
-        message ===
-        'Gebruiker niet gevonden.'
-      ) {
-        status = 404;
-      } else if (
         message.includes(
-          'geen toestemming'
+          'toestemming'
         ) ||
         message.includes(
-          'Een admin kan alleen'
-        ) ||
-        message.includes(
-          'owner-account'
+          'admin kan alleen'
         )
       ) {
-        status = 403;
+        status =
+          403;
       }
 
       res.status(status).json({
@@ -313,44 +333,38 @@ export class AuthController {
     req: AuthRequest,
     res: Response
   ): Promise<void> => {
-    if (
-      !this.canManageUsers(
-        req,
-        res
-      )
-    ) {
-      return;
-    }
-
     try {
-      const userId =
-        Number(req.params.id);
-
-      if (
-        !Number.isInteger(
-          userId
-        ) ||
-        userId <= 0
-      ) {
-        res.status(400).json({
+      if (!req.user) {
+        res.status(401).json({
           message:
-            'Er is een geldig gebruikers-ID vereist.'
+            'U moet ingelogd zijn.'
         });
 
         return;
       }
+
+      const userId =
+        Number(
+          req.params.id
+        );
 
       const {
         role
       } = req.body;
 
       if (
-        role !== 'admin' &&
-        role !== 'medewerker'
+        !Number.isInteger(
+          userId
+        ) ||
+        userId <= 0 ||
+        (
+          role !== 'admin' &&
+          role !== 'medewerker'
+        )
       ) {
         res.status(400).json({
           message:
-            'Er is een geldige gebruikersrol vereist.'
+            'Ongeldige gebruiker of rol.'
         });
 
         return;
@@ -360,8 +374,8 @@ export class AuthController {
         .changeUserRole(
           userId,
           role,
-          req.user!.userId,
-          req.user!.role
+          req.user.userId,
+          req.user.role
         );
 
       res.status(200).json({
@@ -376,25 +390,99 @@ export class AuthController {
           ? error.message
           : 'De gebruikersrol kon niet worden gewijzigd.';
 
-      let status = 400;
+      res.status(
+        message.includes(
+          'niet gevonden'
+        )
+          ? 404
+          : 403
+      ).json({
+        message
+      });
+    }
+  };
+
+  changePassword = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
+      const userId =
+        Number(
+          req.params.id
+        );
+
+      const {
+        password
+      } = req.body;
+
+      if (
+        !Number.isInteger(
+          userId
+        ) ||
+        userId <= 0 ||
+        typeof password !==
+          'string'
+      ) {
+        res.status(400).json({
+          message:
+            'Ongeldige gebruiker of wachtwoord.'
+        });
+
+        return;
+      }
+
+      await this.authService
+        .changeUserPassword(
+          userId,
+          password,
+          req.user.userId,
+          req.user.role
+        );
+
+      res.status(200).json({
+        message:
+          'Wachtwoord succesvol gewijzigd.'
+      });
+    } catch (
+      error: unknown
+    ) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Het wachtwoord kon niet worden gewijzigd.';
+
+      let status =
+        400;
 
       if (
         message ===
         'Gebruiker niet gevonden.'
       ) {
-        status = 404;
+        status =
+          404;
       } else if (
         message.includes(
-          'Alleen de owner'
+          'admin'
         ) ||
         message.includes(
-          'owner-account'
+          'owner'
         ) ||
         message.includes(
-          'eigen rol'
+          'toestemming'
         )
       ) {
-        status = 403;
+        status =
+          403;
       }
 
       res.status(status).json({
@@ -407,18 +495,20 @@ export class AuthController {
     req: AuthRequest,
     res: Response
   ): Promise<void> => {
-    if (
-      !this.canManageUsers(
-        req,
-        res
-      )
-    ) {
-      return;
-    }
-
     try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
       const userId =
-        Number(req.params.id);
+        Number(
+          req.params.id
+        );
 
       if (
         !Number.isInteger(
@@ -428,7 +518,7 @@ export class AuthController {
       ) {
         res.status(400).json({
           message:
-            'Er is een geldig gebruikers-ID vereist.'
+            'Ongeldige gebruiker.'
         });
 
         return;
@@ -437,8 +527,8 @@ export class AuthController {
       await this.authService
         .deleteUser(
           userId,
-          req.user!.userId,
-          req.user!.role
+          req.user.userId,
+          req.user.role
         );
 
       res.status(200).json({
@@ -453,31 +543,81 @@ export class AuthController {
           ? error.message
           : 'De gebruiker kon niet worden verwijderd.';
 
-      let status = 400;
+      let status =
+        403;
 
       if (
         message ===
         'Gebruiker niet gevonden.'
       ) {
-        status = 404;
-      } else if (
-        message.includes(
-          'geen toestemming'
-        ) ||
-        message.includes(
-          'Een admin kan alleen'
-        ) ||
-        message.includes(
-          'owner-account'
-        ) ||
-        message.includes(
-          'eigen account'
-        )
-      ) {
-        status = 403;
+        status =
+          404;
       }
 
       res.status(status).json({
+        message
+      });
+    }
+  };
+
+  restoreUser = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
+      const userId =
+        Number(
+          req.params.id
+        );
+
+      if (
+        !Number.isInteger(
+          userId
+        ) ||
+        userId <= 0
+      ) {
+        res.status(400).json({
+          message:
+            'Ongeldige gebruiker.'
+        });
+
+        return;
+      }
+
+      await this.authService
+        .restoreUser(
+          userId,
+          req.user.role
+        );
+
+      res.status(200).json({
+        message:
+          'Gebruiker succesvol hersteld.'
+      });
+    } catch (
+      error: unknown
+    ) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'De gebruiker kon niet worden hersteld.';
+
+      res.status(
+        message.includes(
+          'niet gevonden'
+        )
+          ? 404
+          : 403
+      ).json({
         message
       });
     }
