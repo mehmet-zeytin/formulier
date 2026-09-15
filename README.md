@@ -16,6 +16,32 @@ Architectuur
 
 Projectstructuur
 
+werkorder-formulier/
+├── backend/
+│   ├── src/
+│   ├── uploads/                    # lokaal, niet committen
+│   ├── .env                        # lokaal, niet committen
+│   ├── .env.example
+│   └── .env.production.example
+├── frontend/
+│   ├── src/
+│   ├── dist/                       # build-output, niet committen
+│   ├── .env.development            # lokaal, niet committen
+│   ├── .env.production
+│   └── .env.example
+├── database/
+│   ├── setup.sql
+│   └── werkorder_db_schema_dump.sql
+├── docs/
+│   └── WO_Plesk_Deployment.md
+├── scripts/
+│   ├── backup.ps1
+│   ├── restore-photos.ps1
+│   └── start-werkorder.bat
+├── backups/                        # lokaal, niet committen
+├── .gitignore
+└── README.md
+
 Vereisten
 
 Installatie vanaf GitLab
@@ -25,6 +51,38 @@ Configuratie
 Applicatie starten
 
 Production build lokaal draaien
+
+De backend kan de gebouwde frontend rechtstreeks serveren.
+
+Frontend bouwen
+
+cd frontend
+
+npm run build
+
+Backend bouwen
+
+cd backend
+
+npm run build
+
+De backend start daarna vanuit:
+
+backend/dist/index.js
+
+Voor een lokale productietest:
+
+cd backend
+
+node dist/index.js
+
+De applicatie is dan lokaal bereikbaar via:
+
+http://localhost:3000
+
+Ook directe React Router-routes, zoals /werkorders, worden door de backend naar de frontend afgehandeld.
+
+Voor de uiteindelijke productieomgeving wordt de Node.js-functionaliteit van Plesk gebruikt.
 
 Authenticatie en beveiliging
 
@@ -40,7 +98,39 @@ Builds controleren
 
 Veelvoorkomende problemen
 
+Deployment
+
+Voor deployment op Plesk:
+
+Plesk deployment-handleiding: docs/WO_Plesk_Deployment.md
+
+Database schema dump: database/werkorder_db_schema_dump.sql
+
+Backend broncode: backend/
+
+Frontend broncode: frontend/
+
+Production environment voorbeeld: backend/.env.production.example
+
+Echte secrets en productiegegevens worden niet in GitLab opgeslagen.
+
 Productie
+
+De applicatie is technisch voorbereid voor deployment op Plesk.
+
+De productieflow is:
+
+GitLab
+↓
+Frontend en backend build
+↓
+Express / Node.js
+↓
+Plesk Node.js
+↓
+HTTPS-domein
+
+Plesk beheert het Node.js-proces.
 
 Nog te doen voor definitieve productie
 
@@ -194,12 +284,6 @@ Database
 
 MySQL 8.0
 
-Procesbeheer
-
-PM2
-
-pm2-logrotate
-
 Architectuur
 
 De backend gebruikt een gelaagde architectuur:
@@ -219,22 +303,26 @@ Projectstructuur
 werkorder-formulier/
 ├── backend/
 │   ├── src/
-│   ├── uploads/             # lokaal, niet committen
-│   ├── .env                 # lokaal, niet committen
-│   └── .env.example
+│   ├── uploads/                    # lokaal, niet committen
+│   ├── .env                        # lokaal, niet committen
+│   ├── .env.example
+│   └── .env.production.example
 ├── frontend/
 │   ├── src/
-│   ├── dist/                # build-output, niet committen
-│   ├── .env.development     # lokaal, niet committen
+│   ├── dist/                       # build-output, niet committen
+│   ├── .env.development            # lokaal, niet committen
 │   ├── .env.production
 │   └── .env.example
 ├── database/
-│   └── setup.sql
+│   ├── setup.sql
+│   └── werkorder_db_schema_dump.sql
+├── docs/
+│   └── WO_Plesk_Deployment.md
 ├── scripts/
 │   ├── backup.ps1
 │   ├── restore-photos.ps1
 │   └── start-werkorder.bat
-├── backups/                 # lokaal, niet committen
+├── backups/                        # lokaal, niet committen
 ├── .gitignore
 └── README.md
 
@@ -265,6 +353,7 @@ Installatie vanaf GitLab
 1. Repository klonen
 
 git clone <project-url>
+
 cd werkorder-formulier
 
 Vervang <project-url> door de GitLab-URL van het project.
@@ -272,6 +361,7 @@ Vervang <project-url> door de GitLab-URL van het project.
 2. Dependencies installeren
 
 npm install --prefix backend
+
 npm install --prefix frontend
 
 Als de root van het project eigen dependencies bevat:
@@ -287,14 +377,19 @@ Log in als MySQL-root:
 Voer in MySQL uit:
 
 CREATE DATABASE IF NOT EXISTS werkorder_db
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
+
+  CHARACTER SET utf8mb4
+
+  COLLATE utf8mb4_unicode_ci;
 
 CREATE USER IF NOT EXISTS 'formulier_user'@'localhost'
+
 IDENTIFIED BY 'KIES_EEN_STERK_UNIEK_WACHTWOORD';
 
 GRANT ALL PRIVILEGES
+
 ON werkorder_db.*
+
 TO 'formulier_user'@'localhost';
 
 FLUSH PRIVILEGES;
@@ -320,23 +415,33 @@ backend/.env
 Voorbeeld:
 
 NODE_ENV=development
+
 PORT=3000
 
 FRONTEND_URL=http://localhost:3000
 
 DB_HOST=localhost
+
 DB_PORT=3306
+
 DB_USER=formulier_user
+
 DB_PASSWORD="KIES_EEN_STERK_UNIEK_DATABASEWACHTWOORD"
+
 DB_NAME=werkorder_db
 
 JWT_SECRET=KIES_EEN_LANGE_WILLEKEURIGE_SECRET
 
 SMTP_HOST=
+
 SMTP_PORT=587
+
 SMTP_SECURE=false
+
 SMTP_USER=
+
 SMTP_PASSWORD=
+
 SMTP_FROM=
 
 Belangrijk:
@@ -388,17 +493,20 @@ Development
 Backend:
 
 cd backend
+
 npm run dev
 
 Frontend:
 
 cd frontend
+
 npm run dev
 
 Normaal zijn dan beschikbaar:
 
 Frontend: http://localhost:5173
-Backend:  http://localhost:3000
+
+Backend:  http://localhost:3000
 
 Tijdens development zijn localhost-origins voor de gebruikte Vite-poorten toegestaan.
 
@@ -409,22 +517,24 @@ De backend kan de gebouwde frontend rechtstreeks serveren.
 Frontend bouwen
 
 cd frontend
+
 npm run build
 
 Backend bouwen
 
 cd backend
+
 npm run build
 
 De backend start daarna vanuit:
 
 backend/dist/index.js
 
-Start via PM2:
+Voor een lokale productietest:
 
 cd backend
-pm2 start dist/index.js --name werkorder-backend
-pm2 save
+
+node dist/index.js
 
 De applicatie is dan lokaal bereikbaar via:
 
@@ -432,15 +542,7 @@ http://localhost:3000
 
 Ook directe React Router-routes, zoals /werkorders, worden door de backend naar de frontend afgehandeld.
 
-PM2 logrotatie
-
-Op de huidige Windows-installatie wordt pm2-logrotate gebruikt.
-
-Voorbeeldinstellingen:
-
-pm2 set pm2-logrotate:max_size 10M
-pm2 set pm2-logrotate:retain 14
-pm2 set pm2-logrotate:compress true
+Voor de uiteindelijke productieomgeving wordt de Node.js-functionaliteit van Plesk gebruikt.
 
 Authenticatie en beveiliging
 
@@ -631,7 +733,9 @@ materialen
 Categorieën:
 
 klant
+
 bedrijf
+
 verkoop
 
 fotos
@@ -657,7 +761,9 @@ ZIP van uploads
 De MySQL-dump gebruikt onder andere:
 
 --no-tablespaces
+
 --single-transaction
+
 --default-character-set=utf8mb4
 
 De databasegegevens voor de back-up worden lokaal via MySQL login-path beheerd.
@@ -691,11 +797,13 @@ Builds controleren
 Frontend:
 
 cd frontend
+
 npm run build
 
 Backend:
 
 cd backend
+
 npm run build
 
 Beide builds moeten zonder fouten eindigen voordat wijzigingen naar productie gaan.
@@ -705,19 +813,30 @@ Beide builds moeten zonder fouten eindigen voordat wijzigingen naar productie ga
 Onder andere de volgende gegevens horen niet in Git:
 
 node_modules/
+
 dist/
+
 backend/.env
+
 frontend/.env
+
 frontend/.env.development
+
 frontend/dist/
+
 backend/dist/
+
 backups/
+
 database-backups/
+
 backend/uploads/
+
 temp_restore/
+
 restore_selected_photo/
 
-database/setup.sql, .env.example-bestanden en frontend/.env.production horen wel in de repository zolang daarin geen secrets staan.
+database/setup.sql, database/werkorder_db_schema_dump.sql, docs/WO_Plesk_Deployment.md, .env.example-bestanden, backend/.env.production.example en frontend/.env.production horen wel in de repository zolang daarin geen secrets of productiegegevens staan.
 
 Veelvoorkomende problemen
 
@@ -754,12 +873,14 @@ Frontend kan backend niet bereiken
 Development:
 
 Frontend: http://localhost:5173
-API:      http://localhost:3000/api
+
+API:      http://localhost:3000/api
 
 Production build:
 
 Frontend + API: http://localhost:3000
-API-prefix:     /api
+
+API-prefix:     /api
 
 Ontwikkelafspraken
 
@@ -783,19 +904,21 @@ created_by blijft auditinformatie en wordt niet gebruikt als vervanging voor de 
 
 Productie
 
-De applicatie is technisch voorbereid om de frontend-build door de backend te laten serveren.
+De applicatie is technisch voorbereid voor deployment op Plesk.
 
-De huidige lokale productie-achtige flow is:
+De productieflow is:
 
-React production build
-        ↓
+GitLab
+↓
+Frontend en backend build
+↓
 Express / Node.js
-        ↓
-PM2
-        ↓
-http://localhost:3000
+↓
+Plesk Node.js
+↓
+HTTPS-domein
 
-PM2 bewaakt het backendproces en logrotatie is ingesteld.
+Plesk beheert het Node.js-proces.
 
 Nog te doen voor definitieve productie
 
@@ -833,7 +956,7 @@ voltooide werkorder onveranderbaar
 
 back-up
 
-productiehosting/reverse proxy definitief configureren op basis van de gekozen server
+Plesk Node.js, database, domein en HTTPS definitief configureren
 
 Licentie
 

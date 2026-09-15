@@ -405,6 +405,22 @@ export default function WerkorderForm({
       >
     >({});
 
+  const [
+    vergroteFotoUrl,
+    setVergroteFotoUrl
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
+    vergroteFotoAlt,
+    setVergroteFotoAlt
+  ] =
+    useState(
+      'Werkorderfoto'
+    );
+
   useEffect(() => {
     let cancelled =
       false;
@@ -1311,7 +1327,19 @@ export default function WerkorderForm({
                               foto.beschrijving ??
                               'Werkorderfoto'
                             }
-                            className="w-full h-28 object-cover rounded"
+                            onClick={() => {
+                              setVergroteFotoUrl(
+                                savedFotoUrls[
+                                  foto.id
+                                ]
+                              );
+
+                              setVergroteFotoAlt(
+                                foto.beschrijving ??
+                                'Werkorderfoto'
+                              );
+                            }}
+                            className="w-full h-28 object-cover rounded cursor-pointer hover:opacity-90 transition"
                           />
                         ) : (
                           <div className="w-full h-28 flex items-center justify-center rounded bg-gray-100 text-xs text-gray-500">
@@ -1331,6 +1359,44 @@ export default function WerkorderForm({
                   )
               }
             </div>
+          </div>
+        )}
+
+        {vergroteFotoUrl && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+            onClick={() =>
+              setVergroteFotoUrl(
+                null
+              )
+            }
+          >
+            <button
+              type="button"
+              onClick={() =>
+                setVergroteFotoUrl(
+                  null
+                )
+              }
+              className="absolute top-4 right-6 text-white text-4xl font-bold"
+              aria-label="Foto sluiten"
+            >
+              ×
+            </button>
+
+            <img
+              src={
+                vergroteFotoUrl
+              }
+              alt={
+                vergroteFotoAlt
+              }
+              onClick={
+                event =>
+                  event.stopPropagation()
+              }
+              className="max-w-[95vw] max-h-[90vh] object-contain rounded shadow-2xl"
+            />
           </div>
         )}
 
