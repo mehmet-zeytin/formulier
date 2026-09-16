@@ -35,10 +35,8 @@ export class AuthController {
       } = req.body;
 
       if (
-        typeof email !==
-          'string' ||
-        typeof password !==
-          'string' ||
+        typeof email !== 'string' ||
+        typeof password !== 'string' ||
         !email.trim() ||
         !password
       ) {
@@ -50,22 +48,13 @@ export class AuthController {
         return;
       }
 
-      const token =
-        await this.authService.login(
-          email,
-          password
-        );
-
       /*
-      * JWT wordt alleen als
-      * HttpOnly-cookie opgeslagen.
-      *
-      * JavaScript in de frontend
-      * kan deze cookie niet uitlezen.
+      * Eventuele oude sessie verwijderen.
+      * Een nieuwe login is pas voltooid
+      * nadat MFA succesvol is geverifieerd.
       */
-      res.cookie(
+      res.clearCookie(
         AUTH_COOKIE_NAME,
-        token,
         {
           httpOnly: true,
 
@@ -76,21 +65,24 @@ export class AuthController {
           sameSite:
             'lax',
 
-          maxAge:
-            AUTH_COOKIE_MAX_AGE,
-
           path:
             '/'
         }
       );
 
-      /*
-      * JWT wordt bewust NIET
-      * teruggestuurd naar de frontend.
-      */
+      const result =
+        await this.authService.login(
+          email,
+          password
+        );
+
       res.status(200).json({
         message:
-          'Inloggen succesvol.'
+          result.requiresSetup
+            ? 'Stel MFA in om verder te gaan.'
+            : 'Voer uw MFA-code in.',
+
+        ...result
       });
     } catch (
       error: unknown
@@ -105,6 +97,82 @@ export class AuthController {
       });
     }
   };
+
+verifyMfa = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      challengeToken,
+      code
+    } = req.body;
+
+    if (
+      typeof challengeToken !==
+        'string' ||
+      !challengeToken ||
+      typeof code !==
+        'string' ||
+      !code
+    ) {
+      res.status(400).json({
+        message:
+          'MFA-sessie en MFA-code zijn verplicht.'
+      });
+
+      return;
+    }
+
+    const token =
+      await this.authService
+        .verifyMfaLogin(
+          challengeToken,
+          code.trim()
+        );
+
+    /*
+     * Alleen na succesvolle MFA
+     * wordt de echte login-cookie gezet.
+     */
+    res.cookie(
+      AUTH_COOKIE_NAME,
+      token,
+      {
+        httpOnly: true,
+
+        secure:
+          process.env.NODE_ENV ===
+          'production',
+
+        sameSite:
+          'lax',
+
+        maxAge:
+          AUTH_COOKIE_MAX_AGE,
+
+        path:
+          '/'
+      }
+    );
+
+    res.status(200).json({
+      message:
+        'Inloggen succesvol.'
+    });
+  } catch (
+    error: unknown
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'MFA-verificatie is mislukt.';
+
+    res.status(401).json({
+      message
+    });
+  }
+};
 
   logout = (
     req: Request,
@@ -483,6 +551,75 @@ export class AuthController {
       ) {
         status =
           403;
+      }
+
+      res.status(status).json({
+        message
+      });
+    }
+  };
+
+  resetMfa = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
+      const userId =
+        Number(
+          req.params.id
+        );
+
+      if (
+        !Number.isInteger(
+          userId
+        ) ||
+        userId <= 0
+      ) {
+        res.status(400).json({
+          message:
+            'Ongeldige gebruiker.'
+        });
+
+        return;
+      }
+
+      await this.authService
+        .resetUserMfa(
+          userId,
+          req.user.userId,
+          req.user.role
+        );
+
+      res.status(200).json({
+        message:
+          'MFA succesvol gereset.'
+      });
+    } catch (
+      error: unknown
+    ) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'MFA kon niet worden gereset.';
+
+      let status =
+        403;
+
+      if (
+        message ===
+        'Gebruiker niet gevonden.'
+      ) {
+        status =
+          404;
       }
 
       res.status(status).json({

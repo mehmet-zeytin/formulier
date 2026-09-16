@@ -14,6 +14,7 @@ import {
   deleteUser,
   getDeletedUsers,
   getUsers,
+  resetUserMfa,
   restoreUser,
   type UserListItem
 } from '../services/userService';
@@ -354,6 +355,44 @@ export default function UsersPage() {
           getApiMessage(
             error,
             'Het wachtwoord kon niet worden gewijzigd.'
+          )
+        );
+      }
+    };
+
+  const handleMfaReset =
+    async (
+      user:
+        UserListItem
+    ): Promise<void> => {
+      const confirmed =
+        window.confirm(
+          `Weet u zeker dat u MFA voor ${user.email} wilt resetten?\n\nDe huidige authenticator-koppeling wordt verwijderd. De gebruiker moet bij de volgende login MFA opnieuw instellen.`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      setError('');
+      setSuccess('');
+
+      try {
+        await resetUserMfa(
+          user.id
+        );
+
+        setSuccess(
+          `MFA van ${user.email} is gereset. De gebruiker moet bij de volgende login MFA opnieuw instellen. Als het oude account nog in de Authenticator-app staat, moet dit eerst uit de Authenticator-app worden verwijderd.`
+        );
+      
+      } catch (
+        error: unknown
+      ) {
+        setError(
+          getApiMessage(
+            error,
+            'MFA kon niet worden gereset.'
           )
         );
       }
@@ -736,6 +775,20 @@ export default function UsersPage() {
                           className="border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded text-sm"
                         >
                           Wachtwoord wijzigen
+                        </button>
+                      )}
+
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleMfaReset(
+                              user
+                            )
+                          }
+                          className="border border-amber-300 text-amber-700 hover:bg-amber-50 px-3 py-2 rounded text-sm"
+                        >
+                          MFA resetten
                         </button>
                       )}
 

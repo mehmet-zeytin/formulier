@@ -9,13 +9,23 @@ export type UserRole =
 
 export interface CurrentUserResponse {
   userId: number;
-
   email: string;
-
   role: UserRole;
 }
 
-interface LoginResponse {
+export interface LoginResponse {
+  message: string;
+
+  requiresMfa: true;
+
+  requiresSetup: boolean;
+
+  challengeToken: string;
+
+  qrCodeDataUrl?: string;
+}
+
+interface VerifyMfaResponse {
   message: string;
 }
 
@@ -27,26 +37,44 @@ export const login =
   async (
     email: string,
     password: string
+  ): Promise<LoginResponse> => {
+    const response =
+      await api.post<LoginResponse>(
+        '/auth/login',
+        {
+          email,
+          password
+        }
+      );
+
+    return response.data;
+  };
+
+export const verifyMfa =
+  async (
+    challengeToken: string,
+    code: string
   ): Promise<
     CurrentUserResponse
   > => {
     await api.post<
-      LoginResponse
+      VerifyMfaResponse
     >(
-      '/auth/login',
+      '/auth/mfa/verify',
       {
-        email,
-        password
+        challengeToken,
+        code
       }
     );
 
     /*
-     * JWT is HttpOnly en kan dus
-     * niet door JavaScript worden
-     * uitgelezen.
+     * MFA is nu succesvol.
      *
-     * Haal de actuele gebruiker
-     * daarom via /auth/me op.
+     * De backend heeft de
+     * HttpOnly-cookie geplaatst.
+     *
+     * Haal daarna de actuele
+     * gebruiker op.
      */
     return getCurrentUserFromServer();
   };

@@ -32,7 +32,9 @@ export class UserRepository {
             created_at,
             is_deleted,
             deleted_at,
-            oken_version,
+            token_version,
+            mfa_enabled,
+            mfa_secret
 
           FROM users
 
@@ -62,7 +64,9 @@ export class UserRepository {
             created_at,
             is_deleted,
             deleted_at,
-            token_version
+            token_version,
+            mfa_enabled,
+            mfa_secret
 
           FROM users
 
@@ -93,7 +97,9 @@ export class UserRepository {
             created_at,
             is_deleted,
             deleted_at,
-            token_version
+            token_version,
+            mfa_enabled,
+            mfa_secret
 
           FROM users
 
@@ -226,13 +232,17 @@ export class UserRepository {
             password_hash,
             role,
             is_deleted,
-            deleted_at
+            deleted_at,
+            mfa_enabled,
+            mfa_secret
           )
 
           VALUES (
             ?,
             ?,
             ?,
+            FALSE,
+            NULL,
             FALSE,
             NULL
           )
@@ -245,6 +255,81 @@ export class UserRepository {
       );
 
     return result.insertId;
+  }
+
+  async setMfaSecret(
+    id: number,
+    encryptedSecret: string
+  ): Promise<boolean> {
+    const [result] =
+      await pool.query<ResultSetHeader>(
+        `
+          UPDATE users
+
+          SET
+            mfa_secret = ?,
+            mfa_enabled = FALSE
+
+          WHERE id = ?
+            AND is_deleted = FALSE
+        `,
+        [
+          encryptedSecret,
+          id
+        ]
+      );
+
+    return (
+      result.affectedRows > 0
+    );
+  }
+
+  async enableMfa(
+    id: number
+  ): Promise<boolean> {
+    const [result] =
+      await pool.query<ResultSetHeader>(
+        `
+          UPDATE users
+
+          SET
+            mfa_enabled = TRUE,
+            token_version = token_version + 1
+
+          WHERE id = ?
+            AND is_deleted = FALSE
+            AND mfa_secret IS NOT NULL
+        `,
+        [id]
+      );
+
+    return (
+      result.affectedRows > 0
+    );
+  }
+
+  async disableMfa(
+    id: number
+  ): Promise<boolean> {
+    const [result] =
+      await pool.query<ResultSetHeader>(
+        `
+          UPDATE users
+
+          SET
+            mfa_enabled = FALSE,
+            mfa_secret = NULL,
+            token_version = token_version + 1
+
+          WHERE id = ?
+            AND is_deleted = FALSE
+        `,
+        [id]
+      );
+
+    return (
+      result.affectedRows > 0
+    );
   }
 
   async updateRole(
@@ -301,6 +386,7 @@ export class UserRepository {
       result.affectedRows > 0
     );
   }
+
   async softDelete(
     id: number
   ): Promise<boolean> {
@@ -311,14 +397,6 @@ export class UserRepository {
       await connection
         .beginTransaction();
 
-      /*
-      * Eerst alle extra werkorder-
-      * toegangsrechten verwijderen.
-      *
-      * Zo krijgt een herstelde gebruiker
-      * oude toegangsrechten niet
-      * automatisch terug.
-      */
       await connection.query(
         `
           DELETE FROM werkorder_access
@@ -327,9 +405,6 @@ export class UserRepository {
         [id]
       );
 
-      /*
-      * Daarna de gebruiker soft-deleten.
-      */
       const [result] =
         await connection
           .query<ResultSetHeader>(
@@ -339,7 +414,7 @@ export class UserRepository {
                 is_deleted = TRUE,
                 deleted_at = NOW(),
                 token_version = token_version + 1
-              
+
               WHERE id = ?
                 AND is_deleted = FALSE
                 AND role <> 'owner'

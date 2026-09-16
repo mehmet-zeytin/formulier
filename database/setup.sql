@@ -24,9 +24,21 @@ CREATE TABLE IF NOT EXISTS users (
         NULL
         DEFAULT NULL,
 
+    token_version INT
+        NOT NULL
+        DEFAULT 0,
+
+    mfa_enabled BOOLEAN
+        NOT NULL
+        DEFAULT FALSE,
+
+    mfa_secret TEXT
+        NULL,
+
     created_at TIMESTAMP
         DEFAULT CURRENT_TIMESTAMP
 );
+
 
 CREATE TABLE IF NOT EXISTS werkorders (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -79,6 +91,7 @@ CREATE TABLE IF NOT EXISTS werkorders (
         ON DELETE SET NULL
 );
 
+
 CREATE TABLE IF NOT EXISTS materialen (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
@@ -107,6 +120,7 @@ CREATE TABLE IF NOT EXISTS materialen (
         ON DELETE CASCADE
 );
 
+
 CREATE TABLE IF NOT EXISTS fotos (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
@@ -130,6 +144,7 @@ CREATE TABLE IF NOT EXISTS fotos (
         REFERENCES werkorders(id)
         ON DELETE CASCADE
 );
+
 
 CREATE TABLE IF NOT EXISTS werkorder_access (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -170,6 +185,7 @@ CREATE TABLE IF NOT EXISTS werkorder_access (
         REFERENCES users(id)
         ON DELETE SET NULL
 );
+
 
 CREATE TABLE IF NOT EXISTS werkorder_assignment_history (
     id INT AUTO_INCREMENT PRIMARY KEY,

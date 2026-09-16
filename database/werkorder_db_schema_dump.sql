@@ -52,7 +52,7 @@ CREATE TABLE `materialen` (
   PRIMARY KEY (`id`),
   KEY `fk_materialen_werkorder` (`werkorder_id`),
   CONSTRAINT `fk_materialen_werkorder` FOREIGN KEY (`werkorder_id`) REFERENCES `werkorders` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=110 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=113 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -71,6 +71,8 @@ CREATE TABLE `users` (
   `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
   `deleted_at` timestamp NULL DEFAULT NULL,
   `token_version` int NOT NULL DEFAULT '0',
+  `mfa_enabled` tinyint(1) NOT NULL DEFAULT '0',
+  `mfa_secret` text,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -166,4 +168,4 @@ CREATE TABLE `werkorders` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-09-15 15:24:15
+-- Dump completed on 2026-09-16 11:33:08

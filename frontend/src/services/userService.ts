@@ -162,3 +162,12 @@ export const restoreUser =
 
     return response.data;
   };
+
+  export const resetUserMfa =
+  async (
+    userId: number
+  ): Promise<void> => {
+    await api.patch(
+      `/auth/users/${userId}/mfa/reset`
+    );
+  };

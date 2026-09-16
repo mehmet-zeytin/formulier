@@ -45,10 +45,41 @@ const loginLimiter =
     }
   });
 
+const mfaLimiter =
+  rateLimit({
+    windowMs:
+      15 *
+      60 *
+      1000,
+
+    limit:
+      10,
+
+    standardHeaders:
+      'draft-7',
+
+    legacyHeaders:
+      false,
+
+    skipSuccessfulRequests:
+      true,
+
+    message: {
+      message:
+        'Te veel MFA-pogingen. Probeer het over 15 minuten opnieuw.'
+    }
+  });
+
 router.post(
   '/login',
   loginLimiter,
   controller.login
+);
+
+router.post(
+  '/mfa/verify',
+  mfaLimiter,
+  controller.verifyMfa
 );
 
 router.post(
@@ -90,6 +121,12 @@ router.patch(
   '/users/:id/password',
   authMiddleware,
   controller.changePassword
+);
+
+router.patch(
+  '/users/:id/mfa/reset',
+  authMiddleware,
+  controller.resetMfa
 );
 
 router.delete(

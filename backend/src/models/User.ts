@@ -20,6 +20,9 @@ export interface User {
     | string
     | null;
   token_version: number;
+
+  mfa_enabled: boolean;
+  mfa_secret: string | null;
 }
 
 export interface UserListItem {

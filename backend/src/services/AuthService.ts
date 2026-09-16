@@ -5,6 +5,15 @@ import jwt
   from 'jsonwebtoken';
 
 import {
+  generateSecret,
+  generateURI,
+  verify
+} from 'otplib';
+
+import QRCode
+  from 'qrcode';
+
+import {
   UserRepository
 } from '../repositories/UserRepository';
 
@@ -16,20 +25,50 @@ import type {
   UserRole
 } from '../models/User';
 
+import {
+  encryptMfaSecret,
+  decryptMfaSecret
+} from '../utils/mfaCrypto';
+
+
 export interface AuthTokenPayload {
   userId: number;
   email: string;
   role: UserRole;
   tokenVersion: number;
 }
+
+
+interface MfaChallengePayload {
+  userId: number;
+  purpose: 'mfa-login';
+}
+
+
+export type LoginResult =
+  | {
+      requiresMfa: true;
+      requiresSetup: false;
+      challengeToken: string;
+    }
+  | {
+      requiresMfa: true;
+      requiresSetup: true;
+      challengeToken: string;
+      qrCodeDataUrl: string;
+    };
+
+
 const BCRYPT_ROUNDS =
   12;
+
 
 const DUMMY_PASSWORD_HASH =
   bcrypt.hashSync(
     'dummy-password-for-timing-check',
     BCRYPT_ROUNDS
   );
+
 
 export class AuthService {
   private userRepo =
@@ -38,10 +77,54 @@ export class AuthService {
   private werkorderRepo =
     new WerkorderRepository();
 
+
+  private createAuthToken(
+    user: {
+      id: number;
+      email: string;
+      role: UserRole;
+      token_version: number;
+    }
+  ): string {
+    const jwtSecret =
+      process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      throw new Error(
+        'JWT_SECRET is niet geconfigureerd.'
+      );
+    }
+
+    const payload:
+      AuthTokenPayload = {
+        userId:
+          user.id,
+
+        email:
+          user.email,
+
+        role:
+          user.role,
+
+        tokenVersion:
+          user.token_version
+      };
+
+    return jwt.sign(
+      payload,
+      jwtSecret,
+      {
+        expiresIn:
+          '8h'
+      }
+    );
+  }
+
+
   async login(
     email: string,
     password: string
-  ): Promise<string> {
+  ): Promise<LoginResult> {
     const normalizedEmail =
       email
         .trim()
@@ -82,30 +165,221 @@ export class AuthService {
       );
     }
 
-    const payload:
-      AuthTokenPayload = {
-        userId:
-          user.id,
+    const challengeToken =
+      jwt.sign(
+        {
+          userId:
+            user.id,
 
-        email:
+          purpose:
+            'mfa-login'
+        } satisfies MfaChallengePayload,
+        jwtSecret,
+        {
+          expiresIn:
+            '5m'
+        }
+      );
+
+    if (
+      user.mfa_enabled &&
+      user.mfa_secret
+    ) {
+      return {
+        requiresMfa:
+          true,
+
+        requiresSetup:
+          false,
+
+        challengeToken
+      };
+    }
+
+    const secret =
+      generateSecret();
+
+    const encryptedSecret =
+      encryptMfaSecret(
+        secret
+      );
+
+    const saved =
+      await this.userRepo
+        .setMfaSecret(
+          user.id,
+          encryptedSecret
+        );
+
+    if (!saved) {
+      throw new Error(
+        'MFA kon niet worden voorbereid.'
+      );
+    }
+
+    const uri =
+      generateURI({
+        issuer:
+          'WO-applicatie',
+
+        label:
           user.email,
 
-        role:
-          user.role,
+        secret
+      });
 
-        tokenVersion:
-          user.token_version
-      };
+    const qrCodeDataUrl =
+      await QRCode.toDataURL(
+        uri
+      );
 
-    return jwt.sign(
-      payload,
-      jwtSecret,
-      {
-        expiresIn:
-          '8h'
+    return {
+      requiresMfa:
+        true,
+
+      requiresSetup:
+        true,
+
+      challengeToken,
+
+      qrCodeDataUrl
+    };
+  }
+
+
+  async verifyMfaLogin(
+    challengeToken: string,
+    code: string
+  ): Promise<string> {
+    const jwtSecret =
+      process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      throw new Error(
+        'JWT_SECRET is niet geconfigureerd.'
+      );
+    }
+
+    let challenge:
+      MfaChallengePayload;
+
+    try {
+      challenge =
+        jwt.verify(
+          challengeToken,
+          jwtSecret
+        ) as MfaChallengePayload;
+    } catch {
+      throw new Error(
+        'De MFA-sessie is ongeldig of verlopen.'
+      );
+    }
+
+    if (
+      challenge.purpose !==
+        'mfa-login' ||
+      !Number.isInteger(
+        challenge.userId
+      )
+    ) {
+      throw new Error(
+        'De MFA-sessie is ongeldig.'
+      );
+    }
+
+    if (
+      !/^\d{6}$/.test(
+        code
+      )
+    ) {
+      throw new Error(
+        'Voer een geldige 6-cijferige MFA-code in.'
+      );
+    }
+
+    const user =
+      await this.userRepo
+        .findById(
+          challenge.userId
+        );
+
+    if (
+      !user ||
+      user.is_deleted ||
+      !user.mfa_secret
+    ) {
+      throw new Error(
+        'De gebruiker of MFA-configuratie is ongeldig.'
+      );
+    }
+
+    const secret =
+      decryptMfaSecret(
+        user.mfa_secret
+      );
+
+    const result =
+      await verify({
+        secret,
+        token:
+          code,
+        epochTolerance:
+          30
+      });
+
+    if (!result.valid) {
+      throw new Error(
+        'De MFA-code is onjuist.'
+      );
+    }
+
+    if (
+      !user.mfa_enabled
+    ) {
+      const enabled =
+        await this.userRepo
+          .enableMfa(
+            user.id
+          );
+
+      if (!enabled) {
+        throw new Error(
+          'MFA kon niet worden geactiveerd.'
+        );
       }
+
+      /*
+       * enableMfa verhoogt
+       * token_version.
+       *
+       * Daarom halen we
+       * de gebruiker opnieuw op.
+       */
+      const refreshedUser =
+        await this.userRepo
+          .findById(
+            user.id
+          );
+
+      if (
+        !refreshedUser ||
+        refreshedUser.is_deleted
+      ) {
+        throw new Error(
+          'Gebruiker niet gevonden.'
+        );
+      }
+
+      return this.createAuthToken(
+        refreshedUser
+      );
+    }
+
+    return this.createAuthToken(
+      user
     );
   }
+
 
   async getUsers(
     requesterRole: UserRole
@@ -137,6 +411,7 @@ export class AuthService {
     return users;
   }
 
+
   async getDeletedUsers(
     requesterRole: UserRole
   ) {
@@ -151,6 +426,7 @@ export class AuthService {
     return this.userRepo
       .findAllDeleted();
   }
+
 
   async createUser(
     email: string,
@@ -239,7 +515,7 @@ export class AuthService {
     const passwordHash =
       await bcrypt.hash(
         password,
-        12
+        BCRYPT_ROUNDS
       );
 
     return this.userRepo
@@ -249,6 +525,7 @@ export class AuthService {
         role
       );
   }
+
 
   async changeUserRole(
     targetUserId: number,
@@ -340,6 +617,7 @@ export class AuthService {
     }
   }
 
+
   async changeUserPassword(
     targetUserId: number,
     password: string,
@@ -404,7 +682,7 @@ export class AuthService {
     const passwordHash =
       await bcrypt.hash(
         password,
-        12
+        BCRYPT_ROUNDS
       );
 
     const updated =
@@ -417,6 +695,73 @@ export class AuthService {
     if (!updated) {
       throw new Error(
         'Het wachtwoord kon niet worden gewijzigd.'
+      );
+    }
+  }
+
+  async resetUserMfa(
+    targetUserId: number,
+    requesterId: number,
+    requesterRole: UserRole
+  ): Promise<void> {
+    if (
+      requesterRole !== 'owner' &&
+      requesterRole !== 'admin'
+    ) {
+      throw new Error(
+        'U heeft geen toestemming om MFA te resetten.'
+      );
+    }
+
+    const targetUser =
+      await this.userRepo
+        .findById(
+          targetUserId
+        );
+
+    if (
+      !targetUser ||
+      targetUser.is_deleted
+    ) {
+      throw new Error(
+        'Gebruiker niet gevonden.'
+      );
+    }
+
+    if (
+      targetUser.id === requesterId
+    ) {
+      throw new Error(
+        'U kunt MFA van uw eigen account hier niet resetten.'
+      );
+    }
+
+    if (
+      targetUser.role === 'owner'
+    ) {
+      throw new Error(
+        'MFA van de owner kan hier niet worden gereset.'
+      );
+    }
+
+    if (
+      requesterRole === 'admin' &&
+      targetUser.role !== 'medewerker'
+    ) {
+      throw new Error(
+        'Een admin kan alleen MFA van medewerkers resetten.'
+      );
+    }
+
+    const reset =
+      await this.userRepo
+        .disableMfa(
+          targetUserId
+        );
+
+    if (!reset) {
+      throw new Error(
+        'MFA kon niet worden gereset.'
       );
     }
   }
@@ -480,10 +825,10 @@ export class AuthService {
     }
 
     /*
-    * Controleer eerst of deze
-    * gebruiker nog verantwoordelijk
-    * is voor openstaande concepten.
-    */
+     * Controleer eerst of deze
+     * gebruiker nog verantwoordelijk
+     * is voor openstaande concepten.
+     */
     const hasOpenDrafts =
       await this.werkorderRepo
         .hasOpenDraftsAssignedToUser(
@@ -510,6 +855,7 @@ export class AuthService {
       );
     }
   }
+
 
   async restoreUser(
     targetUserId: number,
