@@ -167,6 +167,31 @@ Een medewerker met toegang tot een open concept kan het concept volgens de gelde
 
 - MySQL 8.0
 
+## Oplevering
+
+De applicatie wordt leeg opgeleverd.
+
+De oplevering bevat:
+
+- de volledige broncode;
+- het actuele databaseschema;
+- een schema-only database dump;
+- deploymentdocumentatie.
+
+De oplevering bevat geen:
+
+- bestaande gebruikers;
+- owner-account;
+- werkorders;
+- foto's of andere uploads;
+- testdata;
+- productiegegevens;
+- secrets.
+
+De map `backend/uploads` wordt niet met inhoud opgeleverd.
+
+Het eerste owner-account wordt tijdens de productie-deployment aangemaakt nadat de database en environmentvariabelen zijn geconfigureerd.
+
 ## Procesbeheer productie
 
 De productieomgeving gebruikt de Node.js-functionaliteit van Plesk.

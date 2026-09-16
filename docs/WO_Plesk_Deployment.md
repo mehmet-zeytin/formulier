@@ -90,6 +90,18 @@ mfa_secret
 
 De schema-dump bevat geen gebruikers- of werkordergegevens.
 
+### Lege oplevering
+
+De applicatie wordt zonder bestaande gebruikers, werkorders, foto's of andere productiegegevens opgeleverd.
+
+De database dump bevat alleen het databaseschema en geen applicatiedata.
+
+Er wordt geen owner-account meegeleverd.
+
+Het eerste owner-account wordt tijdens de deployment aangemaakt nadat de production database correct is geïmporteerd en de environmentvariabelen zijn ingesteld.
+
+De map `backend/uploads` wordt leeg opgeleverd.
+
 ---
 
 ## 5. Production environment-variabelen
