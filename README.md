@@ -250,7 +250,7 @@ werkorder-formulier/
 ├── scripts/
 │   ├── backup.ps1
 │   ├── restore-photos.ps1
-│   └── start-werkorder.bat
+│   
 ├── backups/                        # lokaal, niet committen
 ├── .gitignore
 └── README.md
