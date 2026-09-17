@@ -59,12 +59,7 @@ export const authMiddleware =
        * JWT wordt uit de
        * HttpOnly-cookie gehaald.
        */
-      
-      console.log(
-        'COOKIE DEBUG:',
-        req.cookies
-      );
-      
+       
       const token =
         req.cookies?.[
           AUTH_COOKIE_NAME

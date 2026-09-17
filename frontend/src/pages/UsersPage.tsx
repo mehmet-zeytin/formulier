@@ -383,9 +383,10 @@ export default function UsersPage() {
         );
 
         setSuccess(
-          `MFA van ${user.email} is gereset. De gebruiker moet bij de volgende login MFA opnieuw instellen. Als het oude account nog in de Authenticator-app staat, moet dit eerst uit de Authenticator-app worden verwijderd.`
+          `MFA van ${user.email} is succesvol gereset. De gebruiker moet bij de volgende login MFA opnieuw instellen.`
         );
-      
+
+        await loadUsers();
       } catch (
         error: unknown
       ) {
