@@ -90,6 +90,12 @@ router.patch(
   controller.updateDraft
 );
 
+router.delete(
+  '/:id',
+  authMiddleware,
+  controller.deleteWerkorder
+);
+
 router.get(
   '/:id',
   authMiddleware,

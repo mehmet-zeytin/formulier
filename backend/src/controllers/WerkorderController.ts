@@ -926,4 +926,73 @@ export class WerkorderController {
       });
     }
   };
+
+  deleteWerkorder = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
+      const id =
+        Number(
+          req.params.id
+        );
+
+      if (
+        !Number.isInteger(id) ||
+        id <= 0
+      ) {
+        res.status(400).json({
+          message:
+            'Er is een geldig werkorder-ID vereist.'
+        });
+
+        return;
+      }
+
+      await this.werkorderService
+        .deleteWerkorder(
+          id,
+          req.user.role
+        );
+
+      res.status(200).json({
+        message:
+          'Werkorder succesvol verwijderd.'
+      });
+    } catch (
+      error: unknown
+    ) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'De werkorder kon niet worden verwijderd.';
+
+      let status = 400;
+
+      if (
+        message ===
+        'Werkorder niet gevonden.'
+      ) {
+        status = 404;
+      } else if (
+        message ===
+        'Alleen de owner kan werkorders verwijderen.'
+      ) {
+        status = 403;
+      }
+
+      res.status(status).json({
+        message
+      });
+    }
+  };
 }

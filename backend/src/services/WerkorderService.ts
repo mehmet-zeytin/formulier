@@ -11,6 +11,13 @@ import {
 } from '../repositories/FotoRepository';
 
 import {
+  unlink
+} from 'fs/promises';
+
+import path
+  from 'path';
+
+import {
   Werkorder,
   Materiaal
 } from '../models/Werkorder';
@@ -1048,6 +1055,93 @@ export class WerkorderService {
         grantedBy
       );
   }
+
+  async deleteWerkorder(
+  id: number,
+  role: UserRole
+): Promise<void> {
+  if (
+    role !== 'owner'
+  ) {
+    throw new Error(
+      'Alleen de owner kan werkorders verwijderen.'
+    );
+  }
+
+  const werkorder =
+    await this.werkorderRepo
+      .findById(id);
+
+  if (!werkorder) {
+    throw new Error(
+      'Werkorder niet gevonden.'
+    );
+  }
+
+  /*
+   * Foto-paden eerst ophalen.
+   *
+   * Zodra de werkorder wordt
+   * verwijderd, worden de foto-
+   * records via ON DELETE CASCADE
+   * ook verwijderd.
+   */
+  const fotoPaths =
+    await this.werkorderRepo
+      .getFotoPaths(id);
+
+  const deleted =
+    await this.werkorderRepo
+      .deletePermanent(id);
+
+  if (!deleted) {
+    throw new Error(
+      'De werkorder kon niet worden verwijderd.'
+    );
+  }
+
+  /*
+   * De database is nu correct
+   * verwijderd.
+   *
+   * Daarna ruimen we de fysieke
+   * fotobestanden op.
+   */
+  for (
+    const fotoPath
+    of fotoPaths
+  ) {
+    try {
+      const fileName =
+        path.basename(
+          fotoPath
+        );
+
+      const absolutePath =
+        path.resolve(
+          process.cwd(),
+          'uploads',
+          fileName
+        );
+
+      await unlink(
+        absolutePath
+      );
+    } catch (
+      error: unknown
+    ) {
+      /*
+       * Een ontbrekend bestand mag
+       * de reeds geslaagde database-
+       * verwijdering niet terugdraaien.
+       */
+      console.error(
+        'Foto kon niet worden verwijderd:',
+        error
+      );
+    }
+  }
+}
 
   async getAssignableUsers() {
     return this.werkorderRepo

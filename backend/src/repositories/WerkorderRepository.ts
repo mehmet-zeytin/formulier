@@ -676,6 +676,93 @@ export class WerkorderRepository {
     }
   }
 
+  async getFotoPathsForDelete(
+  werkorderId: number
+): Promise<string[]> {
+  const [rows] =
+    await pool.query<RowDataPacket[]>(
+      `
+        SELECT bestandspad
+        FROM fotos
+        WHERE werkorder_id = ?
+      `,
+      [werkorderId]
+    );
+
+  return rows.map(
+    row =>
+      String(
+        row.bestandspad
+      )
+  );
+}
+
+
+  async getFotoPaths(
+    werkorderId: number
+  ): Promise<string[]> {
+    const [rows] =
+      await pool.query<RowDataPacket[]>(
+        `
+          SELECT bestandspad
+          FROM fotos
+          WHERE werkorder_id = ?
+        `,
+        [werkorderId]
+      );
+
+    return rows.map(
+      row =>
+        String(
+          row.bestandspad
+        )
+    );
+  }
+
+
+  async deletePermanent(
+    werkorderId: number
+  ): Promise<boolean> {
+    const connection =
+      await pool.getConnection();
+
+    try {
+      await connection
+        .beginTransaction();
+
+      const [result] =
+        await connection
+          .query<ResultSetHeader>(
+            `
+              DELETE FROM werkorders
+              WHERE id = ?
+            `,
+            [werkorderId]
+          );
+
+      if (
+        result.affectedRows === 0
+      ) {
+        await connection
+          .rollback();
+
+        return false;
+      }
+
+      await connection.commit();
+
+      return true;
+    } catch (
+      error
+    ) {
+      await connection.rollback();
+
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   async getAssignmentHistory(
     werkorderId: number
   ): Promise<

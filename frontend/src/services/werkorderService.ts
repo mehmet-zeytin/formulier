@@ -325,3 +325,17 @@ export const getAssignmentHistory =
 
     return response.data;
   };
+
+  export const deleteWerkorder =
+  async (
+    werkorderId: number
+  ): Promise<MessageResponse> => {
+    const response =
+      await api.delete<
+        MessageResponse
+      >(
+        `/werkorders/${werkorderId}`
+      );
+
+    return response.data;
+  };

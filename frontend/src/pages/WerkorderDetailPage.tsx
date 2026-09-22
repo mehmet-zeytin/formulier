@@ -11,6 +11,7 @@ import {
 
 import {
   deleteFoto,
+  deleteWerkorder,
   getFotoBlob,
   getWerkorderDetail,
   getAssignableUsers,
@@ -239,6 +240,14 @@ export default function WerkorderDetailPage() {
       >
     >(
       {}
+    );
+
+  const [
+    deletingWerkorder,
+    setDeletingWerkorder
+  ] =
+    useState(
+      false
     );
 
   const [
@@ -691,6 +700,58 @@ export default function WerkorderDetailPage() {
       }
     };
 
+  const handleDeleteWerkorder =
+    async (): Promise<void> => {
+      if (
+        !detail ||
+        !isOwner
+      ) {
+        return;
+      }
+
+      const confirmed =
+        window.confirm(
+          `Weet u zeker dat u werkorder ${detail.werkorder_id} permanent wilt verwijderen?\n\nDeze actie kan niet via de applicatie ongedaan worden gemaakt.`
+        );
+
+      if (
+        !confirmed
+      ) {
+        return;
+      }
+
+      try {
+        setDeletingWerkorder(
+          true
+        );
+
+        await deleteWerkorder(
+          detail.id
+        );
+
+        navigate(
+          '/werkorders',
+          {
+            replace:
+              true
+          }
+        );
+      } catch (
+        error: unknown
+      ) {
+        window.alert(
+          getErrorMessage(
+            error,
+            'De werkorder kon niet worden verwijderd.'
+          )
+        );
+      } finally {
+        setDeletingWerkorder(
+          false
+        );
+      }
+    };
+
   const toggleAccessUser = (
     userId: number
   ): void => {
@@ -974,14 +1035,38 @@ export default function WerkorderDetailPage() {
           }
         </h1>
 
-        {isDraft && (
-          <>
+        <div className="mt-5 flex flex-wrap gap-3">
+          {isDraft && (
             <Link
               to={`/werkorders/${detail.id}/edit`}
-              className="mt-5 inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded"
+              className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded"
             >
               Verdergaan met concept
             </Link>
+          )}
+
+          {isOwner && (
+            <button
+              type="button"
+              onClick={
+                handleDeleteWerkorder
+              }
+              disabled={
+                deletingWerkorder
+              }
+              className="inline-flex items-center justify-center bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold px-5 py-2.5 rounded"
+            >
+              {
+                deletingWerkorder
+                  ? 'Verwijderen...'
+                  : 'Werkorder verwijderen'
+              }
+            </button>
+          )}
+        </div>
+
+        {isDraft && (
+          <>
 
             <div className="mt-6 border border-gray-200 rounded p-4">
               <h2 className="font-semibold text-gray-900">
