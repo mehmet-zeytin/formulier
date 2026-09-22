@@ -12,6 +12,7 @@ import WerkorderDetailPage from './pages/WerkorderDetailPage';
 import EditWerkorderPage from './pages/EditWerkorderPage';
 import UsersPage from './pages/UsersPage';
 import PrivateRoute from './components/PrivateRoute';
+import TrashPage from './pages/TrashPage';
 
 function LegacyWerkorderDetailRedirect() {
   const { id } =
@@ -72,6 +73,13 @@ function App() {
           <PrivateRoute>
             <FormPage />
           </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/werkorders/trash"
+        element={
+          <TrashPage />
         }
       />
 

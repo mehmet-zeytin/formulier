@@ -84,6 +84,24 @@ router.put(
   controller.updateAccess
 );
 
+router.get(
+  '/trash',
+  authMiddleware,
+  controller.getTrash
+);
+
+router.patch(
+  '/:id/restore',
+  authMiddleware,
+  controller.restoreWerkorder
+);
+
+router.delete(
+  '/:id/permanent',
+  authMiddleware,
+  controller.deleteWerkorderPermanently
+);
+
 router.patch(
   '/:id',
   authMiddleware,
@@ -101,6 +119,7 @@ router.get(
   authMiddleware,
   controller.getById
 );
+
 
 router.use(
   '/:werkorderId/fotos',

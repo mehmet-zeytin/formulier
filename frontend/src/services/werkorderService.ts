@@ -339,3 +339,39 @@ export const getAssignmentHistory =
 
     return response.data;
   };
+
+  export const getTrashWerkorders =
+  async (): Promise<Werkorder[]> => {
+    const response =
+      await api.get<Werkorder[]>(
+        '/werkorders/trash'
+      );
+
+    return response.data;
+  };
+
+
+  export const restoreWerkorder =
+    async (
+      werkorderId: number
+    ): Promise<MessageResponse> => {
+      const response =
+        await api.patch<MessageResponse>(
+          `/werkorders/${werkorderId}/restore`
+        );
+
+      return response.data;
+    };
+
+
+  export const deleteWerkorderPermanently =
+    async (
+      werkorderId: number
+    ): Promise<MessageResponse> => {
+      const response =
+        await api.delete<MessageResponse>(
+          `/werkorders/${werkorderId}/permanent`
+        );
+
+      return response.data;
+    };

@@ -959,6 +959,126 @@ export class WerkorderService {
       );
   }
 
+  async getTrash(
+    role: UserRole
+  ) {
+    if (
+      role !== 'owner'
+    ) {
+      throw new Error(
+        'Alleen de owner kan de prullenbak bekijken.'
+      );
+    }
+
+    return this.werkorderRepo
+      .findTrash();
+  }
+
+  async restoreWerkorder(
+    id: number,
+    role: UserRole
+  ): Promise<void> {
+    if (
+      role !== 'owner'
+    ) {
+      throw new Error(
+        'Alleen de owner kan werkorders herstellen.'
+      );
+    }
+
+    const werkorder =
+      await this.werkorderRepo
+        .findDeletedById(id);
+
+    if (!werkorder) {
+      throw new Error(
+        'Werkorder niet gevonden in de prullenbak.'
+      );
+    }
+
+    const restored =
+      await this.werkorderRepo
+        .restoreFromTrash(id);
+
+    if (!restored) {
+      throw new Error(
+        'De werkorder kon niet worden hersteld.'
+      );
+    }
+  }
+
+  async deleteWerkorderPermanently(
+    id: number,
+    role: UserRole
+  ): Promise<void> {
+    if (
+      role !== 'owner'
+    ) {
+      throw new Error(
+        'Alleen de owner kan werkorders definitief verwijderen.'
+      );
+    }
+
+    const werkorder =
+      await this.werkorderRepo
+        .findDeletedById(id);
+
+    if (!werkorder) {
+      throw new Error(
+        'Werkorder niet gevonden in de prullenbak.'
+      );
+    }
+
+    const fotoPaths =
+      await this.werkorderRepo
+        .getFotoPaths(id);
+
+    const deleted =
+      await this.werkorderRepo
+        .deletePermanent(id);
+
+    if (!deleted) {
+      throw new Error(
+        'De werkorder kon niet definitief worden verwijderd.'
+      );
+    }
+
+    for (
+      const fotoPath
+      of fotoPaths
+    ) {
+      try {
+        const fileName =
+          path.basename(
+            fotoPath
+          );
+
+        const absolutePath =
+          path.resolve(
+            process.cwd(),
+            'uploads',
+            fileName
+          );
+
+        await unlink(
+          absolutePath
+        );
+      } catch (
+        error: unknown
+      ) {
+        console.error(
+          'Foto kon niet worden verwijderd:',
+          error
+        );
+      }
+    }
+  }
+
+
+
+
+
+
   async updateWerkorderAccess(
     id: number,
     userIds: number[],
@@ -1056,8 +1176,9 @@ export class WerkorderService {
       );
   }
 
-  async deleteWerkorder(
+async deleteWerkorder(
   id: number,
+  userId: number,
   role: UserRole
 ): Promise<void> {
   if (
@@ -1078,68 +1199,17 @@ export class WerkorderService {
     );
   }
 
-  /*
-   * Foto-paden eerst ophalen.
-   *
-   * Zodra de werkorder wordt
-   * verwijderd, worden de foto-
-   * records via ON DELETE CASCADE
-   * ook verwijderd.
-   */
-  const fotoPaths =
+  const moved =
     await this.werkorderRepo
-      .getFotoPaths(id);
+      .moveToTrash(
+        id,
+        userId
+      );
 
-  const deleted =
-    await this.werkorderRepo
-      .deletePermanent(id);
-
-  if (!deleted) {
+  if (!moved) {
     throw new Error(
-      'De werkorder kon niet worden verwijderd.'
+      'De werkorder kon niet naar de prullenbak worden verplaatst.'
     );
-  }
-
-  /*
-   * De database is nu correct
-   * verwijderd.
-   *
-   * Daarna ruimen we de fysieke
-   * fotobestanden op.
-   */
-  for (
-    const fotoPath
-    of fotoPaths
-  ) {
-    try {
-      const fileName =
-        path.basename(
-          fotoPath
-        );
-
-      const absolutePath =
-        path.resolve(
-          process.cwd(),
-          'uploads',
-          fileName
-        );
-
-      await unlink(
-        absolutePath
-      );
-    } catch (
-      error: unknown
-    ) {
-      /*
-       * Een ontbrekend bestand mag
-       * de reeds geslaagde database-
-       * verwijdering niet terugdraaien.
-       */
-      console.error(
-        'Foto kon niet worden verwijderd:',
-        error
-      );
-    }
   }
 }
 

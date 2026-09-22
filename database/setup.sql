@@ -65,6 +65,16 @@ CREATE TABLE IF NOT EXISTS werkorders (
         NOT NULL
         DEFAULT FALSE,
 
+    is_deleted BOOLEAN
+        NOT NULL
+        DEFAULT FALSE,
+
+    deleted_at DATETIME
+        NULL
+        DEFAULT NULL,
+
+    deleted_by INT NULL,
+
     created_by INT NULL,
 
     assigned_to INT NULL,
@@ -88,9 +98,15 @@ CREATE TABLE IF NOT EXISTS werkorders (
             assigned_to
         )
         REFERENCES users(id)
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_werkorders_deleted_by
+        FOREIGN KEY (
+            deleted_by
+        )
+        REFERENCES users(id)
         ON DELETE SET NULL
 );
-
 
 CREATE TABLE IF NOT EXISTS materialen (
     id INT AUTO_INCREMENT PRIMARY KEY,

@@ -67,6 +67,10 @@ export default function WerkordersPage() {
       null
     );
 
+  const isOwner =
+  currentUser?.role ===
+  'owner';
+
   const navigate =
     useNavigate();
 
@@ -369,6 +373,15 @@ export default function WerkordersPage() {
             >
               Nieuw formulier
             </Link>
+
+            {isOwner && (
+              <Link
+                to="/werkorders/trash"
+                className="text-sm text-gray-700 hover:text-gray-900 underline"
+              >
+                Prullenbak
+              </Link>
+            )}
 
             <button
               type="button"

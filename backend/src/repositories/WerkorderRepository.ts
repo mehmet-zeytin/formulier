@@ -166,6 +166,7 @@ export class WerkorderRepository {
 
           WHERE
             w.is_voltooid = FALSE
+            AND w.is_deleted = FALSE
             AND (
               w.assigned_to = ?
               OR wa.user_id = ?
@@ -191,6 +192,7 @@ export class WerkorderRepository {
           SELECT *
           FROM werkorders
           WHERE is_voltooid = FALSE
+            AND is_deleted = FALSE
           ORDER BY updated_at DESC
         `
       );
@@ -211,6 +213,7 @@ export class WerkorderRepository {
 
           WHERE assigned_to = ?
             AND is_voltooid = FALSE
+            AND is_deleted = FALSE
 
           LIMIT 1
         `,
@@ -221,8 +224,6 @@ export class WerkorderRepository {
       rows.length > 0
     );
   }
-
-
 
   async completeDraft(
     id: number
@@ -243,6 +244,34 @@ export class WerkorderRepository {
     );
   }
 
+  async findDeletedById(
+    id: number
+  ): Promise<
+    Werkorder | null
+  > {
+    const [rows] =
+      await pool.query<RowDataPacket[]>(
+        `
+          SELECT *
+          FROM werkorders
+          WHERE id = ?
+            AND is_deleted = TRUE
+          LIMIT 1
+        `,
+        [id]
+      );
+
+    if (
+      rows.length === 0
+    ) {
+      return null;
+    }
+
+    return (
+      rows[0] as Werkorder
+    );
+  }
+
   async findAll():
     Promise<Werkorder[]> {
     const [rows] =
@@ -250,6 +279,7 @@ export class WerkorderRepository {
         `
           SELECT *
           FROM werkorders
+          WHERE is_deleted = FALSE
           ORDER BY created_at DESC
         `
       );
@@ -270,8 +300,11 @@ export class WerkorderRepository {
             ON wa.werkorder_id = w.id
 
           WHERE
-            w.assigned_to = ?
-            OR wa.user_id = ?
+            w.is_deleted = FALSE
+            AND (
+              w.assigned_to = ?
+              OR wa.user_id = ?
+            )
 
           ORDER BY
             w.created_at DESC
@@ -296,6 +329,7 @@ export class WerkorderRepository {
           SELECT *
           FROM werkorders
           WHERE id = ?
+            AND is_deleted = FALSE
           LIMIT 1
         `,
         [id]
@@ -697,7 +731,6 @@ export class WerkorderRepository {
   );
 }
 
-
   async getFotoPaths(
     werkorderId: number
   ): Promise<string[]> {
@@ -718,6 +751,73 @@ export class WerkorderRepository {
         )
     );
   }
+
+  async moveToTrash(
+    werkorderId: number,
+    deletedBy: number
+  ): Promise<boolean> {
+    const [result] =
+      await pool.query<ResultSetHeader>(
+        `
+          UPDATE werkorders
+          SET
+            is_deleted = TRUE,
+            deleted_at = NOW(),
+            deleted_by = ?
+          WHERE id = ?
+            AND is_deleted = FALSE
+        `,
+        [
+          deletedBy,
+          werkorderId
+        ]
+      );
+
+    return (
+      result.affectedRows > 0
+    );
+  }
+
+  async restoreFromTrash(
+    werkorderId: number
+  ): Promise<boolean> {
+    const [result] =
+      await pool.query<ResultSetHeader>(
+        `
+          UPDATE werkorders
+          SET
+            is_deleted = FALSE,
+            deleted_at = NULL,
+            deleted_by = NULL
+          WHERE id = ?
+            AND is_deleted = TRUE
+        `,
+        [werkorderId]
+      );
+
+    return (
+      result.affectedRows > 0
+    );
+  }
+
+
+  async findTrash():
+    Promise<Werkorder[]> {
+    const [rows] =
+      await pool.query<RowDataPacket[]>(
+        `
+          SELECT *
+          FROM werkorders
+          WHERE is_deleted = TRUE
+          ORDER BY deleted_at DESC
+        `
+      );
+
+    return rows as Werkorder[];
+  }
+
+
+
 
 
   async deletePermanent(

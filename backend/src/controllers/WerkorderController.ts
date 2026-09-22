@@ -961,12 +961,13 @@ export class WerkorderController {
       await this.werkorderService
         .deleteWerkorder(
           id,
+          req.user.userId,
           req.user.role
         );
 
       res.status(200).json({
         message:
-          'Werkorder succesvol verwijderd.'
+          'Werkorder succesvol naar de prullenbak verplaatst.'
       });
     } catch (
       error: unknown
@@ -986,6 +987,190 @@ export class WerkorderController {
       } else if (
         message ===
         'Alleen de owner kan werkorders verwijderen.'
+      ) {
+        status = 403;
+      }
+
+      res.status(status).json({
+        message
+      });
+    }
+  };
+
+  getTrash = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        message:
+          'U moet ingelogd zijn.'
+      });
+
+      return;
+    }
+
+    const werkorders =
+      await this.werkorderService
+        .getTrash(
+          req.user.role
+        );
+
+    res.status(200).json(
+      werkorders
+    );
+  } catch (
+    error: unknown
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'De prullenbak kon niet worden geladen.';
+
+    let status = 400;
+
+    if (
+      message ===
+      'Alleen de owner kan de prullenbak bekijken.'
+    ) {
+      status = 403;
+    }
+
+    res.status(status).json({
+      message
+    });
+  }
+};
+
+  restoreWerkorder = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
+      const id =
+        Number(
+          req.params.id
+        );
+
+      if (
+        !Number.isInteger(id) ||
+        id <= 0
+      ) {
+        res.status(400).json({
+          message:
+            'Er is een geldig werkorder-ID vereist.'
+        });
+
+        return;
+      }
+
+      await this.werkorderService
+        .restoreWerkorder(
+          id,
+          req.user.role
+        );
+
+      res.status(200).json({
+        message:
+          'Werkorder succesvol hersteld.'
+      });
+    } catch (
+      error: unknown
+    ) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'De werkorder kon niet worden hersteld.';
+
+      let status = 400;
+
+      if (
+        message ===
+        'Werkorder niet gevonden in de prullenbak.'
+      ) {
+        status = 404;
+      } else if (
+        message ===
+        'Alleen de owner kan werkorders herstellen.'
+      ) {
+        status = 403;
+      }
+
+      res.status(status).json({
+        message
+      });
+    }
+  };
+
+  deleteWerkorderPermanently = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
+      const id =
+        Number(
+          req.params.id
+        );
+
+      if (
+        !Number.isInteger(id) ||
+        id <= 0
+      ) {
+        res.status(400).json({
+          message:
+            'Er is een geldig werkorder-ID vereist.'
+        });
+
+        return;
+      }
+
+      await this.werkorderService
+        .deleteWerkorderPermanently(
+          id,
+          req.user.role
+        );
+
+      res.status(200).json({
+        message:
+          'Werkorder definitief verwijderd.'
+      });
+    } catch (
+      error: unknown
+    ) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'De werkorder kon niet definitief worden verwijderd.';
+
+      let status = 400;
+
+      if (
+        message ===
+        'Werkorder niet gevonden in de prullenbak.'
+      ) {
+        status = 404;
+      } else if (
+        message ===
+        'Alleen de owner kan werkorders definitief verwijderen.'
       ) {
         status = 403;
       }
