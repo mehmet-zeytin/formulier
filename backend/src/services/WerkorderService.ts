@@ -164,16 +164,53 @@ const validateWerkorderDate = (
     );
   }
 
-  /*
-   * YYYY-MM-DD kan na de
-   * bovenstaande validatie veilig
-   * alfabetisch vergeleken worden.
-   */
+  const today =
+    new Date();
+
+  today.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
+  const minimumDate =
+    new Date(
+      today.getFullYear() - 2,
+      today.getMonth(),
+      today.getDate()
+    );
+
+  const [
+    year,
+    month,
+    day
+  ] = datum
+    .split('-')
+    .map(Number);
+
+  const werkorderDate =
+    new Date(
+      year,
+      month - 1,
+      day
+    );
+
   if (
-    datum > getToday()
+    werkorderDate >
+    today
   ) {
     throw new Error(
       'De datum mag niet in de toekomst liggen.'
+    );
+  }
+
+  if (
+    werkorderDate <
+    minimumDate
+  ) {
+    throw new Error(
+      'De datum mag maximaal twee jaar in het verleden liggen.'
     );
   }
 };

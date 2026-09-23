@@ -90,10 +90,43 @@ const generateWerkorderId =
     ].join('');
   };
 
-const getToday =
+ const getToday =
   (): string => {
     const now =
       new Date();
+
+    const year =
+      now.getFullYear();
+
+    const month =
+      String(
+        now.getMonth() + 1
+      ).padStart(
+        2,
+        '0'
+      );
+
+    const day =
+      String(
+        now.getDate()
+      ).padStart(
+        2,
+        '0'
+      );
+
+    return (
+      `${year}-${month}-${day}`
+    );
+  };
+
+const getMinimumWerkorderDate =
+  (): string => {
+    const now =
+      new Date();
+
+    now.setFullYear(
+      now.getFullYear() - 2
+    );
 
     const year =
       now.getFullYear();
@@ -191,6 +224,15 @@ const getDateError = (
   ) {
     return (
       'De datum mag niet in de toekomst liggen.'
+    );
+  }
+
+  if (
+    datum <
+    getMinimumWerkorderDate()
+  ) {
+    return (
+      'De datum mag maximaal twee jaar in het verleden liggen.'
     );
   }
 
@@ -610,28 +652,6 @@ export default function WerkorderForm({
     value:
       string
   ): void => {
-    /*
-     * Extra directe controle
-     * wanneer Datum wordt gewijzigd.
-     */
-    if (
-      field === 'datum'
-    ) {
-      const dateError =
-        getDateError(
-          value
-        );
-
-      if (dateError) {
-        setErrorMessage(
-          dateError
-        );
-      } else {
-        setErrorMessage(
-          ''
-        );
-      }
-    }
 
     setWerkorder(
       current => ({
@@ -1479,6 +1499,9 @@ export default function WerkorderForm({
             value={
               werkorder.datum
             }
+            min={
+              getMinimumWerkorderDate()
+            }
             max={
               getToday()
             }
@@ -1490,12 +1513,30 @@ export default function WerkorderForm({
                     .value
                 )
             }
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            className={`w-full border rounded px-3 py-2 ${
+              getDateError(
+                werkorder.datum
+              )
+                ? 'border-red-500'
+                : 'border-gray-300'
+            }`}
           />
 
-          <p className="mt-1 text-xs text-gray-500">
-            De datum mag niet in de toekomst liggen.
-          </p>
+          {getDateError(
+            werkorder.datum
+          ) ? (
+            <p className="mt-1 text-sm text-red-600">
+              {
+                getDateError(
+                  werkorder.datum
+                )
+              }
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-gray-500">
+              De datum mag maximaal twee jaar in het verleden liggen en niet in de toekomst.
+            </p>
+          )}
         </div>
 
         <div className="mb-4">
