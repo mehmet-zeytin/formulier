@@ -9,6 +9,11 @@ import {
   useNavigate
 } from 'react-router-dom';
 
+import {
+  getCurrentUserFromServer,
+  type CurrentUserResponse
+} from '../services/authService';
+
 import type {
   Materiaal,
   UpdateDraftPayload,
@@ -90,7 +95,7 @@ const generateWerkorderId =
     ].join('');
   };
 
- const getToday =
+const getToday =
   (): string => {
     const now =
       new Date();
@@ -119,38 +124,50 @@ const generateWerkorderId =
     );
   };
 
-const getMinimumWerkorderDate =
-  (): string => {
-    const now =
-      new Date();
+const getMinimumWerkorderDate = (
+  role:
+    | 'owner'
+    | 'admin'
+    | 'medewerker'
+    | undefined
+): string => {
+  const date =
+    new Date();
 
-    now.setFullYear(
-      now.getFullYear() - 2
+  const maximumDaysInPast =
+    role === 'owner' ||
+    role === 'admin'
+      ? 90
+      : 30;
+
+  date.setDate(
+    date.getDate() -
+      maximumDaysInPast
+  );
+
+  const year =
+    date.getFullYear();
+
+  const month =
+    String(
+      date.getMonth() + 1
+    ).padStart(
+      2,
+      '0'
     );
 
-    const year =
-      now.getFullYear();
-
-    const month =
-      String(
-        now.getMonth() + 1
-      ).padStart(
-        2,
-        '0'
-      );
-
-    const day =
-      String(
-        now.getDate()
-      ).padStart(
-        2,
-        '0'
-      );
-
-    return (
-      `${year}-${month}-${day}`
+  const day =
+    String(
+      date.getDate()
+    ).padStart(
+      2,
+      '0'
     );
-  };
+
+  return (
+    `${year}-${month}-${day}`
+  );
+};
 
 const isValidDateString = (
   value: string
@@ -201,7 +218,12 @@ const isValidDateString = (
 };
 
 const getDateError = (
-  datum: string
+  datum: string,
+  role:
+    | 'owner'
+    | 'admin'
+    | 'medewerker'
+    | undefined
 ): string | null => {
   if (!datum) {
     return (
@@ -229,10 +251,20 @@ const getDateError = (
 
   if (
     datum <
-    getMinimumWerkorderDate()
+    getMinimumWerkorderDate(
+      role
+    )
   ) {
+    if (
+      role === 'medewerker'
+    ) {
+      return (
+        'De datum mag maximaal 30 dagen in het verleden liggen.'
+      );
+    }
+
     return (
-      'De datum mag maximaal twee jaar in het verleden liggen.'
+      'De datum mag maximaal 90 dagen in het verleden liggen.'
     );
   }
 
@@ -300,6 +332,51 @@ export default function WerkorderForm({
 }: WerkorderFormProps) {
   const navigate =
     useNavigate();
+
+  const [
+  currentUser,
+  setCurrentUser
+  ] =
+    useState<
+      CurrentUserResponse | null
+    >(null);
+
+    useEffect(() => {
+      let active =
+        true;
+
+      const loadCurrentUser =
+        async (): Promise<void> => {
+          try {
+            const user =
+              await getCurrentUserFromServer();
+
+            if (!active) {
+              return;
+            }
+
+            setCurrentUser(
+              user
+            );
+          } catch {
+            if (!active) {
+              return;
+            }
+
+            setCurrentUser(
+              null
+            );
+          }
+        };
+
+      void loadCurrentUser();
+
+      return () => {
+        active =
+          false;
+      };
+    }, []);
+
 
   const isEditMode =
     initialDetail !==
@@ -631,6 +708,12 @@ export default function WerkorderForm({
   ] =
     useState('');
 
+  const [
+  draftErrorMessage,
+  setDraftErrorMessage
+] =
+  useState('');
+
   const markDirty =
     (): void => {
       changeVersionRef
@@ -660,6 +743,14 @@ export default function WerkorderForm({
           value
       })
     );
+
+if (
+  field === 'datum'
+) {
+  setDraftErrorMessage('');
+}
+
+markDirty();
 
     markDirty();
   };
@@ -771,7 +862,8 @@ export default function WerkorderForm({
     (): void => {
       const dateError =
         getDateError(
-          werkorder.datum
+          werkorder.datum,
+          currentUser?.role
         );
 
       if (dateError) {
@@ -949,13 +1041,6 @@ export default function WerkorderForm({
         setAutoSaveStatus(
           'error'
         );
-
-        setErrorMessage(
-          getErrorMessage(
-            error,
-            'Het concept kon niet automatisch worden opgeslagen.'
-          )
-        );
       }
     };
 
@@ -1017,12 +1102,11 @@ export default function WerkorderForm({
 
   const handleSaveDraft =
     async (): Promise<void> => {
-      setErrorMessage('');
+      setDraftErrorMessage('');
       setSuccessMessage('');
 
       const versionAtStart =
-        changeVersionRef
-          .current;
+        changeVersionRef.current;
 
       const payload =
         getDraftPayload();
@@ -1055,8 +1139,7 @@ export default function WerkorderForm({
         ]);
 
         if (
-          changeVersionRef
-            .current ===
+          changeVersionRef.current ===
           versionAtStart
         ) {
           setHasUnsavedChanges(
@@ -1074,11 +1157,7 @@ export default function WerkorderForm({
       } catch (
         error: unknown
       ) {
-        setAutoSaveStatus(
-          'error'
-        );
-
-        setErrorMessage(
+        setDraftErrorMessage(
           getErrorMessage(
             error,
             'Het concept kon niet worden opgeslagen.'
@@ -1117,7 +1196,9 @@ export default function WerkorderForm({
 
       const dateError =
         getDateError(
-          werkorder.datum
+          werkorder.datum,
+          currentUser?.role
+
         );
 
       if (dateError) {
@@ -1215,10 +1296,14 @@ export default function WerkorderForm({
       } catch (
         error: unknown
       ) {
-        setErrorMessage(
+        setAutoSaveStatus(
+          'error'
+        );
+
+        setDraftErrorMessage(
           getErrorMessage(
             error,
-            'De werkorder kon niet worden voltooid.'
+            'Het concept kon niet worden opgeslagen.'
           )
         );
       } finally {
@@ -1500,7 +1585,10 @@ export default function WerkorderForm({
               werkorder.datum
             }
             min={
-              getMinimumWerkorderDate()
+              getMinimumWerkorderDate(
+                currentUser?.role
+
+              )
             }
             max={
               getToday()
@@ -1515,7 +1603,8 @@ export default function WerkorderForm({
             }
             className={`w-full border rounded px-3 py-2 ${
               getDateError(
-                werkorder.datum
+                werkorder.datum,
+                currentUser?.role
               )
                 ? 'border-red-500'
                 : 'border-gray-300'
@@ -1523,18 +1612,25 @@ export default function WerkorderForm({
           />
 
           {getDateError(
-            werkorder.datum
+            werkorder.datum,
+            currentUser?.role
           ) ? (
             <p className="mt-1 text-sm text-red-600">
               {
                 getDateError(
-                  werkorder.datum
+                  werkorder.datum,
+                  currentUser?.role
                 )
               }
             </p>
           ) : (
             <p className="mt-1 text-xs text-gray-500">
-              De datum mag maximaal twee jaar in het verleden liggen en niet in de toekomst.
+              {
+                currentUser?.role ===
+                  'medewerker'
+                  ? 'De datum mag maximaal 30 dagen in het verleden liggen en niet in de toekomst.'
+                  : 'De datum mag maximaal 90 dagen in het verleden liggen en niet in de toekomst.'
+              }
             </p>
           )}
         </div>
@@ -1553,14 +1649,17 @@ export default function WerkorderForm({
               event =>
                 updateField(
                   'uitgevoerde_werkzaamheden',
-                  event.target
-                    .value
+                  event.target.value
                 )
             }
             placeholder="Beschrijf hier de uitgevoerde werkzaamheden..."
             className="w-full border border-gray-300 rounded px-3 py-2"
             rows={4}
           />
+
+          <p className="mt-1 text-xs text-gray-500">
+            Hier wordt kort beschreven welke werkzaamheden zijn uitgevoerd en wat er eventueel is aangepast of opgelost.
+          </p>
         </div>
 
         <div className="mb-6 pb-6 border-b border-gray-200">
@@ -1662,22 +1761,32 @@ export default function WerkorderForm({
         )}
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            type="button"
-            disabled={
-              isBusy
-            }
-            onClick={() =>
-              void handleSaveDraft()
-            }
-            className="flex-1 border border-blue-600 text-blue-700 hover:bg-blue-50 disabled:border-gray-300 disabled:text-gray-400 font-semibold py-3 rounded"
-          >
-            {
-              savingDraft
-                ? 'Concept opslaan...'
-                : 'Concept opslaan'
-            }
-          </button>
+          <div className="flex-1">
+            <button
+              type="button"
+              disabled={
+                savingDraft
+              }
+              onClick={() =>
+                void handleSaveDraft()
+              }
+              className="w-full border border-blue-600 text-blue-700 hover:bg-blue-50 disabled:border-gray-300 disabled:text-gray-400 font-semibold py-3 rounded"
+            >
+              {
+                savingDraft
+                  ? 'Concept opslaan...'
+                  : 'Concept opslaan'
+              }
+            </button>
+
+            {draftErrorMessage && (
+              <p className="mt-2 text-sm text-red-600">
+                {
+                  draftErrorMessage
+                }
+              </p>
+            )}
+          </div>
 
           <button
             type="submit"
@@ -1694,6 +1803,6 @@ export default function WerkorderForm({
           </button>
         </div>
       </form>
-    </div>
-  );
-}
+      </div>
+      );
+      }

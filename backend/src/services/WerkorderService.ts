@@ -39,46 +39,12 @@ interface WerkorderInput {
   >[];
 
   createdBy: number;
+  role: UserRole;
 }
-
-const getToday = (): string => {
-  const now =
-    new Date();
-
-  const year =
-    now.getFullYear();
-
-  const month =
-    String(
-      now.getMonth() + 1
-    ).padStart(
-      2,
-      '0'
-    );
-
-  const day =
-    String(
-      now.getDate()
-    ).padStart(
-      2,
-      '0'
-    );
-
-  return (
-    `${year}-${month}-${day}`
-  );
-};
 
 const isValidDateString = (
   value: string
 ): boolean => {
-  /*
-   * Alleen exact:
-   *
-   * YYYY-MM-DD
-   *
-   * accepteren.
-   */
   const match =
     /^(\d{4})-(\d{2})-(\d{2})$/
       .exec(value);
@@ -96,25 +62,11 @@ const isValidDateString = (
   const day =
     Number(match[3]);
 
-  /*
-   * Voorkomt onrealistische
-   * jaartallen.
-   */
   if (
     year < 1900 ||
-    year > 9999
-  ) {
-    return false;
-  }
-
-  if (
+    year > 9999 ||
     month < 1 ||
-    month > 12
-  ) {
-    return false;
-  }
-
-  if (
+    month > 12 ||
     day < 1 ||
     day > 31
   ) {
@@ -128,13 +80,6 @@ const isValidDateString = (
       day
     );
 
-  /*
-   * JavaScript maakt bijvoorbeeld
-   * 2026-02-31 automatisch maart.
-   *
-   * Daarom controleren we de
-   * onderdelen opnieuw.
-   */
   return (
     date.getFullYear() ===
       year &&
@@ -145,8 +90,35 @@ const isValidDateString = (
   );
 };
 
+const getMinimumWerkorderDate = (
+  role: UserRole
+): Date => {
+  const minimumDate =
+    new Date();
+
+  minimumDate.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
+  const maximumDaysInPast =
+    role === 'medewerker'
+      ? 30
+      : 90;
+
+  minimumDate.setDate(
+    minimumDate.getDate() -
+      maximumDaysInPast
+  );
+
+  return minimumDate;
+};
+
 const validateWerkorderDate = (
-  datum: string
+  datum: string,
+  role: UserRole
 ): void => {
   if (!datum) {
     throw new Error(
@@ -164,23 +136,6 @@ const validateWerkorderDate = (
     );
   }
 
-  const today =
-    new Date();
-
-  today.setHours(
-    0,
-    0,
-    0,
-    0
-  );
-
-  const minimumDate =
-    new Date(
-      today.getFullYear() - 2,
-      today.getMonth(),
-      today.getDate()
-    );
-
   const [
     year,
     month,
@@ -196,6 +151,23 @@ const validateWerkorderDate = (
       day
     );
 
+  werkorderDate.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
+  const today =
+    new Date();
+
+  today.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
   if (
     werkorderDate >
     today
@@ -205,12 +177,25 @@ const validateWerkorderDate = (
     );
   }
 
+  const minimumDate =
+    getMinimumWerkorderDate(
+      role
+    );
+
   if (
     werkorderDate <
     minimumDate
   ) {
+    if (
+      role === 'medewerker'
+    ) {
+      throw new Error(
+        'De datum mag maximaal 30 dagen in het verleden liggen.'
+      );
+    }
+
     throw new Error(
-      'De datum mag maximaal twee jaar in het verleden liggen.'
+      'De datum mag maximaal 90 dagen in het verleden liggen.'
     );
   }
 };
@@ -274,7 +259,8 @@ export class WerkorderService {
     input: WerkorderInput
   ): Promise<number> {
     validateWerkorderDate(
-      input.werkorder.datum
+      input.werkorder.datum,
+      input.role
     );
 
     if (
@@ -330,7 +316,8 @@ export class WerkorderService {
   async createDraft(
     werkorderId: string,
     datum: string,
-    createdBy: number
+    createdBy: number,
+    role: UserRole
   ): Promise<number> {
     const normalizedWerkorderId =
       werkorderId.trim();
@@ -344,7 +331,8 @@ export class WerkorderService {
     }
 
     validateWerkorderDate(
-      datum
+      datum,
+      role
     );
 
     return this.werkorderRepo
@@ -458,7 +446,8 @@ export class WerkorderService {
       }
 
       validateWerkorderDate(
-        updates.datum
+        updates.datum,
+        role
       );
     }
 
@@ -673,7 +662,8 @@ export class WerkorderService {
      * niet alsnog worden voltooid.
      */
     validateWerkorderDate(
-      werkorder.datum
+      werkorder.datum,
+      role
     );
 
     const requiredFields = [

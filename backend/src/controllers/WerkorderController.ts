@@ -54,7 +54,9 @@ export class WerkorderController {
             materialen,
 
             createdBy:
-              req.user.userId
+              req.user.userId,
+                  role:
+              req.user.role
           });
 
       res.status(201).json({
@@ -115,7 +117,8 @@ export class WerkorderController {
           .createDraft(
             werkorder_id,
             datum,
-            req.user.userId
+            req.user.userId,
+            req.user.role
           );
 
       res.status(201).json({
