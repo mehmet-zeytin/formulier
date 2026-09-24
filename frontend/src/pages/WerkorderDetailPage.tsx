@@ -711,7 +711,7 @@ export default function WerkorderDetailPage() {
 
       const confirmed =
         window.confirm(
-          `Weet u zeker dat u werkorder ${detail.werkorder_id} permanent wilt verwijderen?\n\nDeze actie kan niet via de applicatie ongedaan worden gemaakt.`
+          `Weet u zeker dat u werkorder ${detail.werkorder_id} naar de prullenbak wilt verplaatsen?\n\nU kunt de werkorder later vanuit de prullenbak herstellen.`
         );
 
       if (
@@ -1058,8 +1058,8 @@ export default function WerkorderDetailPage() {
             >
               {
                 deletingWerkorder
-                  ? 'Verwijderen...'
-                  : 'Werkorder verwijderen'
+                  ? 'Verplaatsen...'
+                  : 'Naar prullenbak'
               }
             </button>
           )}
