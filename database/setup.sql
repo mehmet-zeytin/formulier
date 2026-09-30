@@ -136,6 +136,38 @@ CREATE TABLE IF NOT EXISTS materialen (
         ON DELETE CASCADE
 );
 
+CREATE TABLE werkorder_transfer_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    werkorder_id INT NOT NULL,
+    from_user_id INT NULL,
+    to_user_id INT NOT NULL,
+    requested_by INT NOT NULL,
+    reason VARCHAR(1000) NOT NULL,
+    status ENUM('pending','accepted','rejected') NOT NULL DEFAULT 'pending',
+    rejection_reason VARCHAR(1000) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP NULL DEFAULT NULL,
+
+    CONSTRAINT fk_transfer_request_werkorder
+        FOREIGN KEY (werkorder_id)
+        REFERENCES werkorders(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_transfer_request_from_user
+        FOREIGN KEY (from_user_id)
+        REFERENCES users(id)
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_transfer_request_to_user
+        FOREIGN KEY (to_user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_transfer_request_requested_by
+        FOREIGN KEY (requested_by)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS fotos (
     id INT AUTO_INCREMENT PRIMARY KEY,

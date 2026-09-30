@@ -1,208 +1,346 @@
 # Formulier – Opleverformulier Werkorder
 
-Nederlandstalige webapplicatie voor het aanmaken, automatisch opslaan, beheren, overdragen en afronden van werkorders.
+Nederlandstalige webapplicatie voor het aanmaken, automatisch opslaan, beheren, overdragen, afronden en archiveren van werkorders.
+
+**Staging:** `https://staging.wo.samenict.nl`
+
+De applicatie bestaat uit een React/TypeScript/Vite-frontend, een Node.js/Express 5/TypeScript-backend en een MySQL/MariaDB-database. Autorisatie, validatie en bedrijfsregels worden in de backend afgedwongen.
 
 ---
 
-# Inhoud
+## Inhoud
 
-- Over het project
-- Functionaliteiten
-- Rollen en toegang
-- Technologieën
-- Architectuur
-- Projectstructuur
-- Vereisten
-- Installatie vanaf GitLab
-- Configuratie
-- Eerste owner-account aanmaken
-- Applicatie starten
-- Production build lokaal draaien
-- Authenticatie en beveiliging
-- MFA
-- Private foto's
-- Werkorders en autorisatie
-- Database
-- Back-ups en herstel
-- Builds controleren
-- `.gitignore`
-- Veelvoorkomende problemen
-- Ontwikkelafspraken
-- Deployment
-- Productie
-- Licentie
-
----
-
-# Over het project
-
-Formulier is een Nederlandstalige webapplicatie voor het invullen, opslaan, beheren, overdragen en afronden van werkorders.
-
-De applicatie bestaat uit:
-
-- React/Vite frontend
-- Express/TypeScript backend
-- MySQL 8.0 database
-
-De backend bevat de autorisatie- en bedrijfslogica.
-
-De frontend toont alleen gegevens en acties waarvoor de aangemelde gebruiker toegang heeft.
-
-Voltooide werkorders zijn definitief en kunnen daarna niet meer worden aangepast.
+- [Over het project](#over-het-project)
+- [Functionaliteiten](#functionaliteiten)
+- [Rollen en rechten](#rollen-en-rechten)
+- [Werkorderworkflow](#werkorderworkflow)
+- [Overdrachtsverzoeken](#overdrachtsverzoeken)
+- [Authenticatie en MFA](#authenticatie-en-mfa)
+- [E-mailnotificaties](#e-mailnotificaties)
+- [Foto's](#fotos)
+- [Prullenbak en datumregels](#prullenbak-en-datumregels)
+- [Technische stack](#technische-stack)
+- [Architectuur](#architectuur)
+- [Projectstructuur](#projectstructuur)
+- [Database](#database)
+- [Lokale installatie](#lokale-installatie)
+- [Eerste owner-account](#eerste-owner-account)
+- [Environmentvariabelen](#environmentvariabelen)
+- [Development en builds](#development-en-builds)
+- [Staging op Plesk](#staging-op-plesk)
+- [Teamtest op staging](#teamtest-op-staging)
+- [Beveiliging](#beveiliging)
+- [Back-up en herstel](#back-up-en-herstel)
+- [Git en secrets](#git-en-secrets)
+- [Veelvoorkomende problemen](#veelvoorkomende-problemen)
+- [Opleverchecklist](#opleverchecklist)
+- [Huidige status](#huidige-status)
+- [Licentie](#licentie)
 
 ---
 
-# Functionaliteiten
+## Over het project
 
-## Werkorders
+Formulier is een interne werkorderapplicatie voor het registreren en beheren van werkzaamheden.
 
-De applicatie ondersteunt onder andere:
+Belangrijke ontwerpkeuzes:
 
-- nieuwe werkorder als concept aanmaken;
-- concept automatisch opslaan tijdens het invullen;
-- concept later verder bewerken;
-- werkorder aan een verantwoordelijke gebruiker toewijzen;
-- extra toegang tot een werkorder verlenen;
-- concept overdragen aan een andere gebruiker;
-- reden van overdracht verplicht vastleggen;
-- overdrachtshistorie bewaren;
-- materialen registreren;
-- materiaalcategorieën `klant`, `bedrijf` en `verkoop`;
-- foto's uploaden;
-- beschrijving en tijdstip bij foto's bewaren;
-- werkorder definitief voltooien;
-- voltooide werkorders beschermen tegen verdere wijzigingen;
-- zoeken en filteren op toegankelijke werkorders.
+- werkorders beginnen als concept;
+- concepten worden automatisch opgeslagen;
+- voltooide werkorders zijn immutable/read-only;
+- toegang wordt backend-side gecontroleerd;
+- `created_by` blijft auditinformatie;
+- `assigned_to` bepaalt de primaire verantwoordelijke;
+- extra toegang wordt via `werkorder_access` opgeslagen;
+- overdrachten verlopen via een acceptatie-/weigerflow;
+- foto's zijn niet publiek toegankelijk;
+- gebruikers en werkorders gebruiken waar nodig soft-delete;
+- MFA werkt per gebruiker met een eigen TOTP-secret.
 
-## Gebruikersbeheer
+---
 
-Er zijn drie rollen:
+## Functionaliteiten
+
+### Werkorders
+
+- Concept-WO aanmaken
+- Autosave tijdens het invullen
+- Concept later verder bewerken
+- Primaire verantwoordelijke via `assigned_to`
+- Extra toegang via `werkorder_access`
+- Overdrachtsverzoek naar admin/medewerker
+- Verplichte overdrachtsreden
+- Accepteren of weigeren door ontvanger
+- Verplichte afwijsreden bij weigeren
+- Assignment history / audittrail
+- Materialen registreren
+- Materiaalcategorieën `klant`, `bedrijf` en `verkoop`
+- Private foto's uploaden
+- Beschrijving en tijdstip bij foto's opslaan
+- Werkorder definitief voltooien
+- Voltooide werkorder read-only maken
+- Zoeken en filteren
+- Soft-delete
+- Owner-only prullenbak
+- Herstellen en definitief verwijderen
+- Rolafhankelijke datumbeperkingen
+
+### Gebruikersbeheer
+
+Rollen:
+
+- `owner`
+- `admin`
+- `medewerker`
+
+Ondersteund:
+
+- gebruikers aanmaken;
+- rollen beheren binnen de hiërarchie;
+- wachtwoorden wijzigen;
+- MFA resetten;
+- gebruikers soft-deleten en herstellen;
+- sessies ongeldig maken via `token_version`.
+
+---
+
+## Rollen en rechten
+
+### Owner
+
+Kan alle werkorders/concepten bekijken, admins en medewerkers beheren, rollen/wachtwoorden/MFA beheren, extra werkordertoegang beheren en de prullenbak gebruiken. Het owner-account is beschermd tegen ongewenste verwijdering en rolwijziging.
+
+### Admin
+
+Kan alle werkorders/concepten bekijken en medewerkers beheren. Een admin kan geen owner beheren en heeft geen owner-only prullenbakrechten.
+
+### Medewerker
+
+Heeft toegang wanneer de medewerker als `assigned_to` is ingesteld of via `werkorder_access` extra toegang heeft. `created_by` is auditinformatie en bepaalt niet automatisch de actuele toegang.
+
+---
+
+## Werkorderworkflow
+
+Een nieuwe werkorder start als:
 
 ```text
-owner
-admin
-medewerker
+is_voltooid = 0
 ```
 
-Gebruikers worden soft-deleted.
+Na definitief afronden:
 
-Verwijderde accounts blijven voor auditdoeleinden in de database aanwezig, maar kunnen niet meer inloggen.
+```text
+is_voltooid = 1
+```
 
-Bij wachtwoordwijzigingen, MFA-reset en verwijdering wordt de tokenversie aangepast, zodat bestaande sessies ongeldig kunnen worden gemaakt.
+Een voltooide werkorder kan via de normale werkorderroutes niet meer worden aangepast.
 
----
+Belangrijk:
 
-# Rollen en toegang
-
-## Owner
-
-De owner kan:
-
-- alle werkorders en concepten bekijken;
-- admins en medewerkers aanmaken;
-- admins en medewerkers beheren;
-- rollen wijzigen;
-- wachtwoorden wijzigen;
-- MFA resetten voor admins en medewerkers;
-- extra werkordertoegang beheren.
-
-Het owner-account zelf is beschermd tegen verwijderen en ongewenste rolwijzigingen.
-
-MFA van het owner-account kan niet via het normale gebruikersbeheer worden gereset.
-
-## Admin
-
-Een admin kan:
-
-- alle werkorders en concepten bekijken;
-- medewerkers aanmaken en beheren;
-- wachtwoorden van medewerkers wijzigen;
-- MFA van medewerkers resetten.
-
-Een admin kan geen owner beheren.
-
-Een admin kan geen MFA van een owner of andere admin resetten.
-
-## Medewerker
-
-Een medewerker krijgt toegang tot een werkorder wanneer deze:
-
-- als `assigned_to` aan de medewerker is toegewezen; of
-- via extra werkordertoegang toegang heeft gekregen.
-
-`created_by` is uitsluitend auditinformatie en bepaalt niet zelfstandig de actuele toegang.
-
-Een medewerker met toegang tot een open concept kan het concept volgens de geldende autorisatieregels bewerken en overdragen.
+```text
+created_by       = oorspronkelijke maker / audit
+assigned_to      = actuele primaire verantwoordelijke
+werkorder_access = aanvullende toegang
+```
 
 ---
 
-# Technologieën
+## Overdrachtsverzoeken
 
-## Backend
+Een concept-WO wordt niet direct overgedragen.
 
-- Node.js
-- TypeScript
-- Express 5
-- MySQL2
-- JSON Web Token
-- bcrypt
-- Multer
-- Helmet
-- express-rate-limit
-- cookie-parser
-- otplib
-- qrcode
-- Node.js `crypto`
+1. Verzender kiest een geldige admin/medewerker.
+2. Overdrachtsreden is verplicht.
+3. Backend maakt een request met status `pending`.
+4. `assigned_to` blijft nog ongewijzigd.
+5. Ontvanger ziet **Overdrachtsverzoeken** op `/werkorders`.
+6. Ontvanger kiest **Accepteren** of **Weigeren**.
+7. Bij weigeren is een afwijsreden verplicht.
+8. Bij accepteren wordt `assigned_to` gewijzigd.
+9. De wijziging wordt in de assignment history opgeslagen.
+10. Bij weigeren blijft de huidige verantwoordelijke ongewijzigd.
 
-## Frontend
+Frontend:
 
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-- React Router
-- Axios
+```text
+frontend/src/components/TransferNotifications.tsx
+frontend/src/services/werkorderService.ts
+```
 
-## Database
+Backend:
 
-- MySQL 8.0
+```text
+backend/src/controllers/WerkorderController.ts
+backend/src/services/WerkorderService.ts
+backend/src/repositories/WerkorderRepository.ts
+backend/src/routes/werkorderRoutes.ts
+```
 
-## Oplevering
+API-routes:
 
-De applicatie wordt leeg opgeleverd.
+```text
+GET  /api/werkorders/transfer-requests
+POST /api/werkorders/transfer-requests/:requestId/accept
+POST /api/werkorders/transfer-requests/:requestId/reject
+```
 
-De oplevering bevat:
-
-- de volledige broncode;
-- het actuele databaseschema;
-- een schema-only database dump;
-- deploymentdocumentatie.
-
-De oplevering bevat geen:
-
-- bestaande gebruikers;
-- owner-account;
-- werkorders;
-- foto's of andere uploads;
-- testdata;
-- productiegegevens;
-- secrets.
-
-De map `backend/uploads` wordt niet met inhoud opgeleverd.
-
-Het eerste owner-account wordt tijdens de productie-deployment aangemaakt nadat de database en environmentvariabelen zijn geconfigureerd.
-
-## Procesbeheer productie
-
-De productieomgeving gebruikt de Node.js-functionaliteit van Plesk.
-
-PM2 wordt niet gebruikt voor de uiteindelijke Plesk-deployment.
+Bij accepteren controleert de backend opnieuw of het request nog `pending` is, de ingelogde gebruiker de bedoelde ontvanger is, de werkorder niet voltooid/verwijderd is en de actuele `assigned_to` nog overeenkomt met de verwachte oorspronkelijke situatie.
 
 ---
 
-# Architectuur
+## Authenticatie en MFA
 
-De backend gebruikt een gelaagde architectuur:
+Belangrijke routes:
+
+```text
+POST /api/auth/login
+GET  /api/auth/me
+POST /api/auth/logout
+```
+
+De normale sessie gebruikt een JWT in een **HttpOnly-cookie**. De frontend bewaart de normale JWT niet in `localStorage`.
+
+De backend controleert bij beveiligde requests onder andere:
+
+- JWT-handtekening en expiry;
+- `is_deleted`;
+- actuele rol;
+- `token_version`.
+
+### MFA
+
+MFA gebruikt TOTP-codes van 6 cijfers. Bij setup genereert de backend een secret, slaat die versleuteld op, toont een QR-code en verifieert daarna een geldige code.
+
+MFA-secrets worden beschermd met AES-256-GCM via:
+
+```text
+MFA_ENCRYPTION_KEY
+```
+
+### MFA reset
+
+Na reset wordt de bestaande MFA-configuratie uitgeschakeld en krijgt de gebruiker bij nieuwe setup een nieuwe QR-code. Oude sessies kunnen via `token_version` ongeldig worden gemaakt.
+
+Als een testaccount al met de Authenticator van de ontwikkelaar is gekoppeld, reset MFA vóór de teamtest en laat de tester de nieuwe QR-code zelf scannen.
+
+Deel nooit Authenticator QR-codes of TOTP-secrets via README, Git, chat of screenshots.
+
+---
+
+## E-mailnotificaties
+
+Bij een nieuw overdrachtsverzoek ontvangt de ontvanger naast de in-app-notificatie ook een e-mail.
+
+Systeemafzender:
+
+```text
+Samen ICT Werkorders <noreply@samenict.nl>
+```
+
+De e-mail bevat onder andere:
+
+- werkordernummer;
+- huidige verantwoordelijke;
+- gebruiker die het verzoek heeft gestart;
+- overdrachtsreden;
+- instructie om in te loggen en het verzoek te accepteren of te weigeren.
+
+Gebruikersinput wordt HTML-escaped voordat deze in HTML-e-mails wordt geplaatst.
+
+De verzendende applicatiegebruiker hoeft geen echte mailbox te hebben. Bijvoorbeeld `wim@formulier.nl` kan een WO overdragen naar een gebruiker met een echt e-mailadres. De echte systeemmail wordt via `noreply@samenict.nl` verstuurd.
+
+### Staging SMTP
+
+```env
+SMTP_HOST=192.168.254.203
+SMTP_PORT=26
+SMTP_SECURE=false
+SMTP_IGNORE_TLS=true
+SMTP_FROM=noreply@samenict.nl
+```
+
+Voor deze relay worden geen `SMTP_USER` en `SMTP_PASSWORD` gebruikt.
+
+De relay gebruikt geen authenticatie en geen TLS, draait op poort 26 en is zowel rechtstreeks vanaf Plesk als via de echte overdrachtsflow succesvol getest.
+
+---
+
+## Foto's
+
+Foto's worden niet als publieke static map aangeboden.
+
+Beveiligd endpoint, bijvoorbeeld:
+
+```text
+GET /api/werkorders/:werkorderId/fotos/:fotoId/file
+```
+
+Ondersteund:
+
+```text
+JPEG
+PNG
+WEBP
+```
+
+Maximum:
+
+```text
+5 MB
+```
+
+Beveiliging:
+
+- authenticatie en werkordertoegang;
+- foto/werkorder-relatiecontrole;
+- veilig bestandspad;
+- MIME-validatie;
+- magic-bytecontrole;
+- willekeurige bestandsnamen;
+- geen algemene publieke `/uploads`-route.
+
+---
+
+## Prullenbak en datumregels
+
+### Prullenbak
+
+Normale verwijdering gebruikt soft-delete. De prullenbak is **owner-only**. De owner kan verwijderde werkorders bekijken, herstellen en definitief verwijderen.
+
+### Datumregels
+
+Backend-side:
+
+- `medewerker`: maximaal 30 dagen terug;
+- `admin`: maximaal 90 dagen terug;
+- `owner`: maximaal 90 dagen terug;
+- toekomstige datums zijn niet toegestaan.
+
+---
+
+## Technische stack
+
+### Frontend
+
+React, TypeScript, Vite, Tailwind CSS, React Router, Axios.
+
+### Backend
+
+Node.js, TypeScript, Express 5, MySQL2, JWT, bcrypt, Multer, Helmet, express-rate-limit, cookie-parser, Nodemailer, otplib, qrcode.
+
+### Database
+
+- lokaal: MySQL 8
+- staging: MariaDB via Plesk
+
+### Runtime
+
+Lokaal kan een production-like build via Node/PM2 worden gedraaid. Staging draait via Plesk Node.js/Passenger.
+
+---
+
+## Architectuur
 
 ```text
 Controller
@@ -211,37 +349,44 @@ Service
     ↓
 Repository
     ↓
-MySQL
+Database
 ```
 
-Controllers verwerken HTTP-verzoeken en responses.
-
-Services bevatten bedrijfslogica en autorisatieregels.
-
-Repositories verzorgen SQL-query's en databasecommunicatie.
+- **Controller:** HTTP-request/response
+- **Service:** bedrijfsregels, autorisatie, validatie en workflows
+- **Repository:** SQL, transacties en databasecommunicatie
 
 Autorisatie wordt altijd in de backend afgedwongen.
 
-Alleen knoppen verbergen in de frontend geldt niet als beveiliging.
-
 ---
 
-# Projectstructuur
+## Projectstructuur
 
 ```text
 werkorder-formulier/
 ├── backend/
 │   ├── src/
-│   ├── uploads/                    # lokaal, niet committen
-│   ├── .env                        # lokaal, niet committen
+│   │   ├── controllers/
+│   │   ├── middleware/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   └── utils/
+│   ├── uploads/                # runtime/lokaal, niet committen
+│   ├── dist/                   # build-output, niet committen
+│   ├── .env                    # lokaal, niet committen
 │   ├── .env.example
-│   └── .env.production.example
+│   └── package.json
 ├── frontend/
 │   ├── src/
-│   ├── dist/                       # build-output, niet committen
-│   ├── .env.development            # lokaal, niet committen
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── services/
+│   ├── dist/                   # build-output, niet committen
+│   ├── .env.development        # lokaal, niet committen
 │   ├── .env.production
-│   └── .env.example
+│   └── package.json
 ├── database/
 │   ├── setup.sql
 │   └── werkorder_db_schema_dump.sql
@@ -250,78 +395,115 @@ werkorder-formulier/
 ├── scripts/
 │   ├── backup.ps1
 │   ├── restore-photos.ps1
-│   
-├── backups/                        # lokaal, niet committen
+│   └── start-werkorder.bat
+├── backups/                    # niet committen
 ├── .gitignore
 └── README.md
 ```
 
+Tijdelijke debug- of SMTP-testscripts horen niet in de definitieve repository.
+
 ---
 
-# Vereisten
+## Database
 
-Voor lokaal gebruik:
-
-- Node.js 18 of hoger;
-- npm;
-- MySQL 8.0;
-- moderne browser;
-- Windows voor de huidige lokale service- en back-upscripts.
-
-De huidige MySQL-installatie gebruikt de Windows-service:
+Het basisschema staat in:
 
 ```text
-MySQL80
+database/setup.sql
 ```
 
-Controleer indien nodig:
+Voor een nieuwe installatie moet dit bestand een lege database volledig kunnen opbouwen zonder handmatige aanvullende schemawijzigingen.
+
+Belangrijke structuren:
+
+- `users`
+- `werkorders`
+- `materialen`
+- `fotos`
+- `werkorder_access`
+- assignment/transfer history
+- `werkorder_transfer_requests`
+
+### `werkorder_transfer_requests`
+
+De transferrequesttabel is toegevoegd aan het actuele `database/setup.sql`.
+
+```sql
+CREATE TABLE werkorder_transfer_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    werkorder_id INT NOT NULL,
+    from_user_id INT NULL,
+    to_user_id INT NOT NULL,
+    requested_by INT NOT NULL,
+    reason VARCHAR(1000) NOT NULL,
+    status ENUM('pending','accepted','rejected') NOT NULL DEFAULT 'pending',
+    rejection_reason VARCHAR(1000) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP NULL DEFAULT NULL,
+
+    CONSTRAINT fk_transfer_request_werkorder
+        FOREIGN KEY (werkorder_id)
+        REFERENCES werkorders(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_transfer_request_from_user
+        FOREIGN KEY (from_user_id)
+        REFERENCES users(id)
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_transfer_request_to_user
+        FOREIGN KEY (to_user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_transfer_request_requested_by
+        FOREIGN KEY (requested_by)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
+```
+
+Betekenis:
+
+- `werkorder_id`: betreffende WO;
+- `from_user_id`: huidige/oorspronkelijke verantwoordelijke;
+- `to_user_id`: bedoelde ontvanger;
+- `requested_by`: gebruiker die het verzoek heeft gestart;
+- `reason`: verplichte overdrachtsreden;
+- `status`: `pending`, `accepted` of `rejected`;
+- `rejection_reason`: reden bij weigering;
+- `created_at`: moment van aanvraag;
+- `responded_at`: moment van antwoord.
+
+---
+
+## Lokale installatie
+
+### Vereisten
+
+- Node.js 18 of hoger
+- npm
+- MySQL 8
+- moderne browser
+- Windows voor de huidige PowerShell-back-up/herstelscripts
+
+Controle MySQL-service:
 
 ```powershell
 Get-Service *MySQL*
 ```
 
----
-
-# Installatie vanaf GitLab
-
-## 1. Repository klonen
+### Repository en dependencies
 
 ```powershell
-git clone <project-url>
+git clone <repository-url>
 cd werkorder-formulier
-```
-
-Vervang `<project-url>` door de GitLab-URL van het project.
-
-## 2. Dependencies installeren
-
-Backend:
-
-```powershell
 npm install --prefix backend
-```
-
-Frontend:
-
-```powershell
 npm install --prefix frontend
 ```
 
-Als de root van het project eigen dependencies bevat:
-
-```powershell
-npm install
-```
-
-## 3. Database aanmaken
-
-Log in als MySQL-root:
-
-```powershell
-& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p
-```
-
-Voer in MySQL uit:
+### Database
 
 ```sql
 CREATE DATABASE IF NOT EXISTS werkorder_db
@@ -338,53 +520,33 @@ TO 'formulier_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-Gebruik nooit voorbeeldwachtwoorden in een echte omgeving.
-
-## 4. Databaseschema laden
-
-Importeer:
+Importeer daarna:
 
 ```text
 database/setup.sql
 ```
 
-in:
+---
 
-```text
-werkorder_db
-```
+## Eerste owner-account
 
-Bijvoorbeeld:
+Een lege opleverdatabase bevat geen vooraf aangemaakte productiegebruiker.
+
+Genereer vanuit `backend/` een bcrypt-hash:
 
 ```powershell
-Get-Content ".\database\setup.sql" |
-  & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" `
-    -u formulier_user `
-    -p `
-    werkorder_db
+node -e "const bcrypt=require('bcrypt'); bcrypt.hash('KIES_EEN_STERK_WACHTWOORD',12).then(console.log)"
 ```
 
-Voer het databasewachtwoord in wanneer MySQL daarom vraagt.
+Voeg de eerste owner daarna toe volgens het actuele `users`-schema. Gebruik nooit een plaintext wachtwoord in de database en zet geen productieaccount of productiecredential in `setup.sql`.
 
 ---
 
-# Configuratie
+## Environmentvariabelen
 
-## Backend
+Echte secrets horen nooit in Git.
 
-Kopieer:
-
-```text
-backend/.env.example
-```
-
-naar:
-
-```text
-backend/.env
-```
-
-Voorbeeld:
+### Backend development
 
 ```env
 NODE_ENV=development
@@ -394,122 +556,73 @@ FRONTEND_URL=http://localhost:5173
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=formulier_user
-DB_PASSWORD="KIES_EEN_STERK_UNIEK_DATABASEWACHTWOORD"
+DB_PASSWORD=<STERK_DATABASE_WACHTWOORD>
 DB_NAME=werkorder_db
 
-JWT_SECRET=KIES_EEN_LANGE_WILLEKEURIGE_SECRET
-MFA_ENCRYPTION_KEY=BASE64_VAN_32_WILLEKEURIGE_BYTES
+JWT_SECRET=<LANGE_WILLEKEURIGE_SECRET>
+MFA_ENCRYPTION_KEY=<GELDIGE_ENCRYPTIESLEUTEL>
 
-SMTP_HOST=
+SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
-SMTP_USER=
-SMTP_PASSWORD=
-SMTP_FROM=
+SMTP_IGNORE_TLS=false
+SMTP_USER=<SMTP_GEBRUIKER>
+SMTP_PASSWORD=<SMTP_WACHTWOORD_OF_APP_PASSWORD>
+SMTP_FROM=<AFZENDER>
 ```
 
-Belangrijk:
-
-- `backend/.env` mag nooit naar GitLab;
-- gebruik voor `DB_PASSWORD` hetzelfde wachtwoord als voor de MySQL-gebruiker;
-- gebruik een sterke en willekeurige `JWT_SECRET`;
-- `MFA_ENCRYPTION_KEY` moet Base64 zijn van exact 32 willekeurige bytes;
-- echte secrets horen niet in broncode.
-
-Een MFA encryption key kan worden gegenereerd met:
-
-```powershell
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
-
-De uitvoer hiervan mag niet naar GitLab worden gepusht.
-
-## Frontend development
-
-Voor lokale Vite-development:
+### Frontend development
 
 ```env
 VITE_API_BASE_URL=http://localhost:3000/api
 ```
 
-Dit staat lokaal in:
-
-```text
-frontend/.env.development
-```
-
-## Frontend production
-
-De productionconfiguratie gebruikt:
+### Frontend staging/production
 
 ```env
 VITE_API_BASE_URL=/api
 ```
 
-Daardoor gebruikt de frontend in productie dezelfde origin als de backend.
+### Plesk runtime
+
+Belangrijk:
+
+```text
+NODE_ENV
+FRONTEND_URL
+DB_HOST
+DB_PORT
+DB_USER
+DB_PASSWORD
+DB_NAME
+JWT_SECRET
+MFA_ENCRYPTION_KEY
+SMTP_HOST
+SMTP_PORT
+SMTP_SECURE
+SMTP_IGNORE_TLS
+SMTP_FROM
+```
 
 ---
 
-# Eerste owner-account aanmaken
+## Development en builds
 
-Na een volledig nieuwe database moet een eerste owner-account worden aangemaakt.
-
-Ga naar:
-
-```powershell
-cd backend
-```
-
-Genereer een bcrypt-hash:
-
-```powershell
-node -e "const bcrypt=require('bcrypt'); bcrypt.hash('KIES_EEN_STERK_WACHTWOORD',12).then(console.log)"
-```
-
-Gebruik daarna MySQL:
-
-```sql
-USE werkorder_db;
-
-INSERT INTO users (
-    email,
-    password_hash,
-    role
-)
-VALUES (
-    'admin@formulier.nl',
-    'PLAK_HIER_DE_BCRYPT_HASH',
-    'owner'
-);
-```
-
-Gebruik uitsluitend een unieke bcrypt-hash.
-
-Plaats nooit een plaintext gebruikerswachtwoord in de database.
-
-Bij de eerste login moet het owner-account MFA instellen.
-
----
-
-# Applicatie starten
-
-## Development
-
-Backend:
+Backend development:
 
 ```powershell
 cd backend
 npm run dev
 ```
 
-Frontend:
+Frontend development:
 
 ```powershell
 cd frontend
 npm run dev
 ```
 
-Normaal zijn dan beschikbaar:
+Standaard:
 
 ```text
 Frontend: http://localhost:5173
@@ -517,538 +630,139 @@ Backend:  http://localhost:3000
 API:      http://localhost:3000/api
 ```
 
-Tijdens development zijn de ingestelde localhost-origins toegestaan.
+Backend build:
 
----
+```powershell
+cd backend
+npm run build
+```
 
-# Production build lokaal draaien
+Startup-output:
 
-De backend kan de gebouwde frontend rechtstreeks serveren.
+```text
+backend/dist/index.js
+```
 
-Frontend bouwen:
+Frontend build:
 
 ```powershell
 cd frontend
 npm run build
 ```
 
-Backend bouwen:
-
-```powershell
-cd backend
-npm run build
-```
-
-De backend start daarna vanuit:
+Op Plesk bestaat daarnaast het backend-package-script:
 
 ```text
-backend/dist/index.js
+build:frontend
 ```
 
-Voor een lokale productietest:
-
-```powershell
-cd backend
-node dist/index.js
-```
-
-De applicatie is dan lokaal bereikbaar via:
-
-```text
-http://localhost:3000
-```
-
-Ook directe React Router-routes, zoals `/werkorders`, worden door de backend naar de frontend afgehandeld.
-
-Voor de uiteindelijke productieomgeving wordt de Node.js-functionaliteit van Plesk gebruikt.
+Beide builds moeten zonder fouten afronden vóór deployment.
 
 ---
 
-# Authenticatie en beveiliging
-
-## Login
-
-Login start via:
+## Staging op Plesk
 
 ```text
-POST /api/auth/login
+URL:              https://staging.wo.samenict.nl
+Node.js:          20.20.2
+Application Root: /httpdocs/backend
+Startup file:     dist/index.js
+Environment:      production
 ```
 
-De gebruiker voert eerst:
+Deploymentflow:
 
-```text
-e-mail
-wachtwoord
-```
+1. **Git → Deploy now**
+2. **Node.js → Run script → build**
+3. **Node.js → Run script → build:frontend**
+4. **Restart App**
+5. staging smoke-testen
 
-in.
-
-Na een correct wachtwoord wordt nog geen volledige gebruikerssessie aangemaakt.
-
-De backend vraagt eerst MFA-verificatie.
-
-Als MFA nog niet is ingesteld, wordt een tijdelijke MFA-challenge aangemaakt en wordt een QR-code getoond.
-
-De gebruiker scant de QR-code met een authenticator-app.
-
-Daarna voert de gebruiker de 6-cijferige code in.
-
-De MFA-code wordt gecontroleerd via:
-
-```text
-POST /api/auth/mfa/verify
-```
-
-Pas na succesvolle MFA-verificatie wordt de normale authenticatiesessie aangemaakt.
-
-De backend plaatst het JWT in een HttpOnly-cookie.
-
-De frontend bewaart het JWT niet in `localStorage`.
-
-De frontend stuurt geen handmatige:
-
-```text
-Authorization: Bearer <token>
-```
-
-header.
-
-## Actuele gebruiker
-
-```text
-GET /api/auth/me
-```
-
-## Logout
-
-```text
-POST /api/auth/logout
-```
-
-De JWT is maximaal 8 uur geldig.
-
-Wanneer `JWT_SECRET`, het wachtwoord of de relevante `token_version` verandert, worden bestaande sessies ongeldig.
+Bij frontendwijzigingen controleren dat de nieuwe bundle daadwerkelijk wordt geserveerd.
 
 ---
 
-# MFA
+## Teamtest op staging
 
-MFA is verplicht voor actieve gebruikers.
-
-## Eerste login
-
-Bij een gebruiker waarvoor MFA nog niet is ingesteld:
+Voor overdrachtstests kan bijvoorbeeld worden ingelogd met:
 
 ```text
-e-mail + wachtwoord
-        ↓
-MFA-secret aanmaken
-        ↓
-QR-code tonen
-        ↓
-QR-code scannen
-        ↓
-6-cijferige code invoeren
-        ↓
-MFA activeren
-        ↓
-ingelogd
+wim@formulier.nl
 ```
 
-## Volgende logins
+Deze applicatiegebruiker hoeft geen echte mailbox te hebben.
 
-Bij volgende logins:
+Testflow:
+
+1. log in met `wim@formulier.nl`;
+2. open/maak een concept-WO;
+3. kies een admin/medewerker met een echt e-mailadres;
+4. vul een overdrachtsreden in;
+5. verstuur het verzoek;
+6. controleer dat de WO nog niet direct wordt overgedragen;
+7. controleer dat de ontvanger e-mail krijgt van `Samen ICT Werkorders <noreply@samenict.nl>`;
+8. log in als ontvanger;
+9. controleer **Overdrachtsverzoeken**;
+10. test **Accepteren** en controleer dat de WO bij de ontvanger verschijnt;
+11. maak een nieuw request;
+12. test **Weigeren**;
+13. controleer dat een afwijsreden verplicht is;
+14. controleer dat de WO bij weigeren niet wordt overgedragen.
+
+Als MFA van een testaccount al aan een andere Authenticator is gekoppeld, reset MFA en laat de tester de nieuwe QR-code zelf scannen.
+
+---
+
+## Beveiliging
+
+Onder andere:
+
+- bcrypt password hashing
+- JWT in HttpOnly-cookie
+- `token_version`
+- TOTP-MFA
+- AES-256-GCM voor MFA-secrets
+- rate limiting
+- Helmet
+- CORS-beperkingen
+- CSRF `Origin`-controle voor state-changing requests
+- backendautorisatie
+- private foto-endpoints
+- MIME- en magic-bytevalidatie
+- immutable voltooide werkorders
+- soft-delete
+- HTML escaping in e-mails
+
+Nooit publiceren:
 
 ```text
-e-mail + wachtwoord
-        ↓
-6-cijferige authenticatorcode
-        ↓
-ingelogd
-```
-
-De QR-code wordt niet opnieuw getoond zolang MFA actief is.
-
-## MFA-secrets
-
-MFA-secrets worden niet plaintext in de database opgeslagen.
-
-De backend gebruikt AES-256-GCM om het MFA-secret te versleutelen.
-
-Hiervoor is vereist:
-
-```text
+DB_PASSWORD
+JWT_SECRET
 MFA_ENCRYPTION_KEY
+SMTP_PASSWORD
+Authenticator QR-codes
+TOTP-secrets
 ```
 
-De sleutel moet Base64 zijn van exact 32 willekeurige bytes.
-
-Voor productie moet een nieuwe, aparte sleutel worden gebruikt.
-
-De echte waarde mag nooit naar GitLab.
-
-Als een bestaande database met actieve MFA-koppelingen naar een andere server wordt gemigreerd, moet dezelfde `MFA_ENCRYPTION_KEY` worden meegenomen.
-
-Als deze sleutel verloren gaat, kunnen bestaande versleutelde MFA-secrets niet meer worden ontsleuteld.
-
-De betreffende MFA-koppelingen moeten dan worden gereset.
-
-## MFA-reset
-
-Een owner kan MFA resetten voor:
-
-```text
-admin
-medewerker
-```
-
-Een admin kan MFA alleen resetten voor:
-
-```text
-medewerker
-```
-
-Een medewerker kan geen MFA van andere gebruikers resetten.
-
-MFA van het owner-account kan niet via het normale gebruikersbeheer worden gereset.
-
-Bij een MFA-reset gebeurt:
-
-```text
-mfa_enabled = FALSE
-mfa_secret = NULL
-token_version = token_version + 1
-```
-
-Daardoor worden bestaande sessies van die gebruiker ongeldig.
-
-Bij de volgende login krijgt de gebruiker opnieuw een QR-code en moet MFA opnieuw worden ingesteld.
-
-Als het oude account nog in de Authenticator-app staat, moet dit oude account eerst uit de Authenticator-app worden verwijderd voordat de nieuwe QR-code wordt gescand.
+Bij rotatie van `MFA_ENCRYPTION_KEY` moeten betrokken gebruikers MFA opnieuw instellen.
 
 ---
 
-# Owner MFA recovery
+## Back-up en herstel
 
-Als de owner geen toegang meer heeft tot de authenticator, moet recovery via directe database-/servertoegang plaatsvinden.
-
-Controleer eerst het owner-account:
-
-```sql
-SELECT
-    id,
-    email,
-    role,
-    is_deleted,
-    mfa_enabled,
-    token_version
-FROM users
-WHERE role = 'owner';
-```
-
-Voer alleen bij daadwerkelijk verlies van MFA-toegang uit:
-
-```sql
-UPDATE users
-SET
-    mfa_enabled = FALSE,
-    mfa_secret = NULL,
-    token_version = token_version + 1
-WHERE role = 'owner'
-  AND is_deleted = FALSE;
-```
-
-Deze procedure verandert het wachtwoord niet.
-
-Bij de volgende login moet de owner MFA opnieuw instellen.
-
-Gebruik deze recovery alleen wanneer dat daadwerkelijk nodig is.
-
----
-
-# CSRF-bescherming
-
-Voor state-changing requests controleert de backend de `Origin`.
-
-Dit geldt voor:
-
-```text
-POST
-PUT
-PATCH
-DELETE
-```
-
-Alleen toegestane frontend-origins mogen wijzigingen uitvoeren.
-
-In development kunnen de ingestelde localhost-origins worden toegestaan.
-
-In productie hoort uitsluitend de echte HTTPS-origin toegestaan te zijn.
-
----
-
-# CORS
-
-CORS is beperkt tot bekende frontend-origins.
-
-Credentials zijn ingeschakeld voor cookie-authenticatie.
-
-In productie wordt de toegestane frontend-origin bepaald met:
-
-```text
-FRONTEND_URL
-```
-
----
-
-# Rate limiting
-
-Er is rate limiting voor:
-
-- algemene `/api`-requests;
-- loginpogingen;
-- MFA-verificatiepogingen;
-- foto-uploads.
-
-De huidige limiter gebruikt een memory store.
-
-Dit is geschikt voor de huidige single-instance opzet.
-
-Bij meerdere backendinstances is een gedeelde externe store nodig.
-
----
-
-# HTTP security headers
-
-Helmet wordt gebruikt voor securityheaders.
-
-De Content Security Policy staat voor afbeeldingen onder andere:
-
-```text
-blob:
-```
-
-toe.
-
-Dit is nodig omdat private foto's als blob-URL in de frontend worden weergegeven.
-
----
-
-# Foutafhandeling
-
-De backend geeft gecontroleerde JSON-fouten terug voor onder andere:
-
-- malformed JSON;
-- te grote requests;
-- API 404;
-- interne serverfouten.
-
-Interne technische details en secrets horen niet in foutresponses terecht te komen.
-
----
-
-# Private foto's
-
-Uploads worden niet publiek aangeboden via een algemene `/uploads`-route.
-
-Een foto wordt via een beveiligd endpoint opgehaald:
-
-```text
-GET /api/werkorders/:werkorderId/fotos/:fotoId/file
-```
-
-De backend controleert:
-
-- authenticatie;
-- toegang tot de werkorder;
-- of de foto daadwerkelijk bij die werkorder hoort;
-- of het bestand veilig binnen de uploadmap valt.
-
-Private foto's krijgen cacheheaders die browser- en proxycache zoveel mogelijk voorkomen.
-
----
-
-# Uploadbeveiliging
-
-Toegestane bestandstypen:
-
-```text
-JPEG
-PNG
-WEBP
-```
-
-Maximale bestandsgrootte:
-
-```text
-5 MB
-```
-
-Naast MIME-controle worden ook de daadwerkelijke bestandsbytes gecontroleerd.
-
-Bestandsnamen worden willekeurig gegenereerd.
-
----
-
-# Werkorders en autorisatie
-
-## Concept
-
-Een werkorder begint als concept:
-
-```text
-is_voltooid = 0
-```
-
-De frontend slaat wijzigingen automatisch op na een korte vertraging.
-
-## Voltooid
-
-Na definitief voltooien:
-
-```text
-is_voltooid = 1
-```
-
-Een voltooide werkorder is immutable.
-
-Deze kan via normale werkorderroutes niet meer worden aangepast.
-
-## Verantwoordelijkheid en toegang
-
-```text
-created_by
-```
-
-is de oorspronkelijke maker en auditinformatie.
-
-```text
-assigned_to
-```
-
-is de primaire verantwoordelijke.
-
-Extra toegang wordt opgeslagen voor aanvullende gebruikers die toegang tot een werkorder hebben.
-
-Owner en admin hebben globale toegang.
-
-## Overdracht
-
-Open concepten kunnen volgens de autorisatieregels worden overgedragen.
-
-Bij overdracht:
-
-- is een reden verplicht;
-- wordt de historie bewaard;
-- wordt de nieuwe verantwoordelijke opgeslagen;
-- blijven historische gegevens beschikbaar voor auditdoeleinden.
-
----
-
-# Database
-
-De belangrijkste tabellen en gegevens omvatten onder andere:
-
-## users
-
-Belangrijke velden:
-
-```text
-id
-email
-password_hash
-role
-is_deleted
-deleted_at
-token_version
-mfa_enabled
-mfa_secret
-created_at
-```
-
-`mfa_secret` bevat geen plaintext TOTP-secret.
-
-Het MFA-secret wordt versleuteld opgeslagen.
-
-## werkorders
-
-Belangrijke gegevens:
-
-```text
-werkorder-ID
-datum
-starttijd
-eindtijd
-uitgevoerde werkzaamheden
-status
-is_voltooid
-created_by
-assigned_to
-created_at
-updated_at
-```
-
-## materialen
-
-Categorieën:
-
-```text
-klant
-bedrijf
-verkoop
-```
-
-## fotos
-
-Metadata van private foto's bevat onder andere:
-
-```text
-werkorder
-bestandspad
-beschrijving
-genomen_op
-created_at
-```
-
-Daarnaast ondersteunt de database:
-
-- extra werkordertoegang;
-- overdrachtshistorie;
-- immutable auditinformatie;
-- MFA-status en versleutelde MFA-secrets.
-
-Het actuele schema staat in:
-
-```text
-database/setup.sql
-```
-
-De schema-only dump staat in:
-
-```text
-database/werkorder_db_schema_dump.sql
-```
-
-De schema-dump bevat geen echte gebruikers-, werkorder- of MFA-data.
-
----
-
-# Back-ups en herstel
-
-## Automatische lokale back-up
-
-Script:
+Belangrijke scripts:
 
 ```text
 scripts/backup.ps1
+scripts/restore-photos.ps1
 ```
 
-De back-up bevat:
+Back-up bevat onder andere:
 
-- MySQL-dump;
-- ZIP van uploads.
+- MySQL-dump
+- ZIP van uploads
 
-De MySQL-dump gebruikt onder andere:
+MySQL-dump gebruikt onder andere:
 
 ```text
 --no-tablespaces
@@ -1056,9 +770,7 @@ De MySQL-dump gebruikt onder andere:
 --default-character-set=utf8mb4
 ```
 
-De databasegegevens voor de back-up worden lokaal via MySQL login-path beheerd.
-
-De huidige lokale login-path heet:
+Huidige lokale MySQL login-path:
 
 ```text
 werkorder_backup
@@ -1072,342 +784,155 @@ Handmatig testen:
 
 Back-ups ouder dan 14 dagen worden alleen verwijderd wanneer ze overeenkomen met de bekende back-uppatronen.
 
-## Fotoherstel
-
-Script:
-
-```text
-scripts/restore-photos.ps1
-```
-
-Dit script kan een gekozen foto uit een back-up veilig naar een tijdelijke herstelmap uitpakken.
-
-## Belangrijk
-
-De huidige back-up staat nog lokaal op dezelfde machine.
-
-Voor definitieve productie is daarnaast een tweede/off-site back-uplocatie vereist, bijvoorbeeld:
-
-```text
-OneDrive
-NAS
-aparte server
-object storage
-```
-
-Bij een volledige restore van een database met bestaande MFA-accounts is ook de bijbehorende:
-
-```text
-MFA_ENCRYPTION_KEY
-```
-
-nodig.
+Een back-up is pas betrouwbaar wanneer herstel periodiek is getest. Voor productie is daarnaast een onafhankelijke/off-site back-uplocatie aanbevolen.
 
 ---
 
-# Builds controleren
+## Git en secrets
 
-Frontend:
-
-```powershell
-cd frontend
-npm run build
-```
-
-Backend:
-
-```powershell
-cd backend
-npm run build
-```
-
-Beide builds moeten zonder fouten eindigen voordat wijzigingen naar productie gaan.
-
----
-
-# `.gitignore`
-
-Onder andere de volgende gegevens horen niet in Git:
+Niet committen:
 
 ```text
-node_modules/
-dist/
 backend/.env
 frontend/.env
 frontend/.env.development
-frontend/dist/
+node_modules/
 backend/dist/
+frontend/dist/
+backend/uploads/
 backups/
 database-backups/
-backend/uploads/
 temp_restore/
 restore_selected_photo/
+tijdelijke SMTP-testscripts
+tijdelijke debugbestanden
 ```
 
-De volgende bestanden horen wel in de repository zolang daarin geen secrets of productiegegevens staan:
+Wel committen indien secretvrij:
 
 ```text
 database/setup.sql
 database/werkorder_db_schema_dump.sql
-docs/WO_Plesk_Deployment.md
 backend/.env.example
 backend/.env.production.example
 frontend/.env.example
 frontend/.env.production
-```
-
----
-
-# Veelvoorkomende problemen
-
-## Access denied for user 'formulier_user'@'localhost'
-
-Controleer of:
-
-- het MySQL-wachtwoord van `formulier_user` klopt;
-- `DB_PASSWORD` in `backend/.env` exact overeenkomt;
-- de gebruiker rechten op `werkorder_db` heeft.
-
-## Login geeft "Verzoek geblokkeerd vanwege ongeldige herkomst"
-
-Controleer:
-
-```text
-FRONTEND_URL
-```
-
-en de toegestane development-origins in de backend.
-
-Voor lokale Vite-development:
-
-```text
-http://localhost:5173
-```
-
-Voor een lokale production build:
-
-```text
-http://localhost:3000
-```
-
-## Login geeft 401 Unauthorized
-
-Controleer:
-
-- databaseverbinding;
-- gebruikersaccount;
-- wachtwoord;
-- of de gebruiker niet soft-deleted is.
-
-Als het wachtwoord correct is en MFA actief is, moet daarna de MFA-verificatie plaatsvinden.
-
-## MFA-code is onjuist
-
-Controleer:
-
-- of de juiste gebruiker in de authenticator-app wordt gebruikt;
-- of het apparaat de juiste datum en tijd gebruikt;
-- of de code nog geldig is;
-- of MFA recent is gereset.
-
-Als MFA is gereset, is de oude authenticator-koppeling niet meer geldig.
-
-Verwijder in dat geval het oude account uit de authenticator-app en scan de nieuwe QR-code.
-
-## MFA_ENCRYPTION_KEY ontbreekt
-
-Controleer of de backend environment deze waarde bevat:
-
-```text
-MFA_ENCRYPTION_KEY
-```
-
-De waarde moet Base64 zijn van exact 32 bytes.
-
-## Frontend kan backend niet bereiken
-
-Development:
-
-```text
-Frontend: http://localhost:5173
-API:      http://localhost:3000/api
-```
-
-Production build:
-
-```text
-Frontend + API: http://localhost:3000
-API-prefix:     /api
-```
-
----
-
-# Ontwikkelafspraken
-
-- zichtbare applicatieteksten zijn Nederlandstalig;
-- controllers bevatten zo min mogelijk bedrijfslogica;
-- bedrijfslogica hoort in services;
-- SQL-query's horen in repositories;
-- gevoelige waarden horen niet in broncode;
-- `.env`-bestanden met echte secrets mogen niet naar GitLab;
-- voltooide werkorders zijn niet meer bewerkbaar;
-- autorisatie wordt altijd door de backend afgedwongen;
-- `created_by` blijft auditinformatie en wordt niet gebruikt als vervanging voor de actuele toegangstoewijzing;
-- MFA-secrets mogen nooit worden gelogd;
-- MFA QR-codes mogen niet worden opgeslagen of gedeeld;
-- production secrets moeten verschillen van development secrets.
-
----
-
-# Deployment
-
-Voor deployment op Plesk:
-
-```text
-Plesk deployment-handleiding:
+README.md
 docs/WO_Plesk_Deployment.md
-
-Database schema dump:
-database/werkorder_db_schema_dump.sql
-
-Backend broncode:
-backend/
-
-Frontend broncode:
-frontend/
-
-Production environment voorbeeld:
-backend/.env.production.example
 ```
-
-Echte secrets en productiegegevens worden niet in GitLab opgeslagen.
 
 ---
 
-# Productie
+## Veelvoorkomende problemen
 
-De applicatie is technisch voorbereid voor deployment op Plesk.
+### `Access denied for user 'formulier_user'@'localhost'`
 
-De productieflow is:
+Controleer DB-wachtwoord, `DB_PASSWORD`, databasehost en rechten.
+
+### `401 Unauthorized`
+
+Controleer account, wachtwoord, soft-delete, databaseverbinding en sessie/cookie.
+
+### Ongeldige herkomst
+
+Controleer `FRONTEND_URL` en toegestane origins.
+
+### Transfer request staat in DB maar UI toont niets
+
+Controleer als ontvanger:
 
 ```text
-GitLab
-        ↓
-Frontend en backend build
-        ↓
-Express / Node.js
-        ↓
-Plesk Node.js
-        ↓
-HTTPS-domein
+GET /api/werkorders/transfer-requests
 ```
 
-Plesk beheert het Node.js-proces.
+Als de API het request teruggeeft maar de UI niet, controleer `TransferNotifications.tsx`, frontendbuild, deployment, app restart en browsercache.
 
-PM2 is niet nodig.
+### Transfer request blijft `pending`
 
-## Production environment
+Dit is normaal totdat de bedoelde ontvanger accepteert of weigert. De WO wordt bij het aanmaken van het request nog niet overgedragen.
 
-Minimaal nodig:
+### Geen transfer-e-mail
 
-```env
-NODE_ENV=production
+Controleer:
 
-FRONTEND_URL=https://WO-DOMAIN-HIER
-
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=PLESK_DB_USER
-DB_PASSWORD=PLESK_DB_PASSWORD
-DB_NAME=PLESK_DB_NAME
-
-JWT_SECRET=NIEUWE_PRODUCTIE_JWT_SECRET
-MFA_ENCRYPTION_KEY=NIEUWE_PRODUCTIE_MFA_ENCRYPTION_KEY
-
-SMTP_HOST=
-SMTP_PORT=587
+```text
+SMTP_HOST=192.168.254.203
+SMTP_PORT=26
 SMTP_SECURE=false
-SMTP_USER=
-SMTP_PASSWORD=
-SMTP_FROM=
+SMTP_IGNORE_TLS=true
+SMTP_FROM=noreply@samenict.nl
 ```
 
-Gebruik voor productie nieuwe secrets.
+### MFA-code alleen beschikbaar bij ontwikkelaar
 
-Gebruik niet dezelfde `JWT_SECRET` of `MFA_ENCRYPTION_KEY` als in development.
+Reset MFA voor het account en laat de uiteindelijke tester de nieuwe QR-code zelf scannen.
 
 ---
 
-# Nog te doen voor definitieve productie
+## Opleverchecklist
 
-De volgende punten worden afgerond zodra de echte productieomgeving bekend is:
+### Functionaliteit
 
-- echt domein configureren;
-- HTTPS activeren;
-- `NODE_ENV=production` instellen;
-- `FRONTEND_URL` naar de echte HTTPS-origin wijzigen;
-- nieuwe production `JWT_SECRET` genereren;
-- nieuwe production `MFA_ENCRYPTION_KEY` genereren;
-- production databasegegevens configureren;
-- CORS/CSRF beperken tot de echte productie-origin;
-- `backend/uploads` schrijfbaar en persistent maken;
-- tweede/off-site back-uplocatie configureren;
-- Plesk Node.js definitief configureren;
-- production smoke test uitvoeren.
+- [ ] Login/logout
+- [ ] MFA setup/login/reset
+- [ ] Owner/admin/medewerkerrechten
+- [ ] Concept + autosave
+- [ ] Datumbeperkingen
+- [ ] Materialen
+- [ ] Foto upload/openen
+- [ ] Extra werkordertoegang
+- [ ] Transfer request
+- [ ] Transfer-notificatie
+- [ ] Transfer-e-mail
+- [ ] Accepteren
+- [ ] Weigeren + verplichte reden
+- [ ] Voltooide WO read-only
+- [ ] Soft-delete/prullenbak/herstellen
+- [ ] Definitief verwijderen
 
-## Definitieve smoke test
+### Techniek
 
-Controleer minimaal:
+- [ ] Backend build zonder fouten
+- [ ] Frontend build zonder fouten
+- [x] `werkorder_transfer_requests` in `database/setup.sql`
+- [ ] Volledige `database/setup.sql` op een lege database getest
+- [ ] Plesk environment gecontroleerd
+- [ ] Tijdelijke SMTP/debugscripts verwijderd
+- [ ] Back-up getest
+- [ ] Herstel getest
 
-```text
-login
-eerste MFA-setup
-MFA-verificatie
-verkeerde MFA-code
-tweede login zonder nieuwe QR-code
-MFA-reset testgebruiker
-nieuwe MFA-setup na reset
-logout
-owner/admin/medewerker-rechten
-werkorder aanmaken
-werkorder bewerken
-autosave
-foto uploaden
-foto openen
-overdracht
-voltooide werkorder onveranderbaar
-back-up
-```
+### Oplevering/security
 
----
-
-# Security-check productie
-
-Controleer vóór livegang minimaal:
-
-```text
-HTTPS actief
-NODE_ENV=production
-FRONTEND_URL correct
-nieuwe JWT_SECRET
-nieuwe MFA_ENCRYPTION_KEY
-geen .env in Git
-geen echte secrets in Git
-geen gebruikersdata in schema-dump
-MFA actief
-MFA reset getest
-owner recovery gedocumenteerd
-uploads persistent
-off-site back-up beschikbaar
-frontend build succesvol
-backend build succesvol
-npm audit gecontroleerd
-```
+- [ ] Geen secrets in Git of README
+- [ ] Geen Authenticator QR-codes/TOTP-secrets in documentatie
+- [ ] Blootgestelde credentials waar nodig geroteerd
+- [ ] Testgebruikers opgeschoond of bewust behouden
+- [ ] Test-WO's/testfoto's opgeschoond
+- [ ] Openstaande test-transfers opgeschoond
+- [ ] Geen vooraf ingevulde productieaccounts in opleverpakket
 
 ---
 
-# Licentie
+## Huidige status
 
-Er is momenteel geen afzonderlijke opensourcelicentie opgegeven.
+Per **30 september 2026** is op staging gecontroleerd dat:
 
-Zonder expliciete licentie mag de broncode niet zonder toestemming worden gekopieerd, aangepast of verspreid.
+- transfer requests als `pending` worden opgeslagen;
+- de WO niet direct wordt overgedragen;
+- de ontvanger de notificatie ziet;
+- **Accepteren** werkt;
+- na accepteren de WO bij de ontvanger verschijnt;
+- **Weigeren** met verplichte reden wordt ondersteund;
+- transfer-e-mail bij een echt ontvangeradres aankomt;
+- systeemmail via `Samen ICT Werkorders <noreply@samenict.nl>` wordt verstuurd;
+- de interne SMTP-relay vanaf Plesk bereikbaar is;
+- de relay zonder authenticatie en zonder TLS op poort 26 werkt;
+- `werkorder_transfer_requests` in `database/setup.sql` staat.
+
+Volgende stap: functionele acceptatietest door het team en daarna opschoning voor definitieve oplevering.
+
+---
+
+## Licentie
+
+Er is momenteel geen afzonderlijke opensourcelicentie opgegeven. Zonder expliciete licentie mag de broncode niet zonder toestemming worden gekopieerd, aangepast of verspreid.
