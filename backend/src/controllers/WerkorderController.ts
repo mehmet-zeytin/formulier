@@ -179,6 +179,128 @@ export class WerkorderController {
     }
   };
 
+  getPendingTransferRequests = async (
+    req: any,
+    res: any
+  ): Promise<void> => {
+    try {
+      const requests =
+        await this.werkorderService
+          .getPendingTransferRequests(
+            req.user.userId
+          );
+
+      res.status(200).json(requests);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'De overdrachtsverzoeken konden niet worden geladen.';
+
+      res.status(400).json({
+        message
+      });
+    }
+  };
+
+  acceptTransferRequest = async (
+    req: any,
+    res: any
+  ): Promise<void> => {
+    try {
+      const requestId =
+        Number(req.params.requestId);
+
+      await this.werkorderService
+        .acceptTransferRequest(
+          requestId,
+          req.user.userId
+        );
+
+      res.status(200).json({
+        message:
+          'De overdracht is geaccepteerd.'
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'De overdracht kon niet worden geaccepteerd.';
+
+      let status = 400;
+
+      if (
+        message ===
+        'U mag dit overdrachtsverzoek niet accepteren.'
+      ) {
+        status = 403;
+      }
+
+      if (
+        message ===
+        'Het overdrachtsverzoek bestaat niet of is al afgehandeld.'
+      ) {
+        status = 404;
+      }
+
+      res.status(status).json({
+        message
+      });
+    }
+  };
+
+  rejectTransferRequest = async (
+    req: any,
+    res: any
+  ): Promise<void> => {
+    try {
+      const requestId =
+        Number(req.params.requestId);
+
+      const reason =
+        typeof req.body?.reason === 'string'
+          ? req.body.reason
+          : '';
+
+      await this.werkorderService
+        .rejectTransferRequest(
+          requestId,
+          req.user.userId,
+          reason
+        );
+
+      res.status(200).json({
+        message:
+          'De overdracht is geweigerd.'
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'De overdracht kon niet worden geweigerd.';
+
+      let status = 400;
+
+      if (
+        message ===
+        'U mag dit overdrachtsverzoek niet weigeren.'
+      ) {
+        status = 403;
+      }
+
+      if (
+        message ===
+        'Het overdrachtsverzoek bestaat niet of is al afgehandeld.'
+      ) {
+        status = 404;
+      }
+
+      res.status(status).json({
+        message
+      });
+    }
+  };
+
   getAssignableUsers = async (
     req: AuthRequest,
     res: Response
@@ -660,7 +782,7 @@ export class WerkorderController {
 
       res.status(200).json({
         message:
-          'Concept succesvol overgedragen.'
+          'Het overdrachtsverzoek is verstuurd.'
       });
     } catch (
       error: unknown

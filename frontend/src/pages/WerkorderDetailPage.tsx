@@ -926,7 +926,7 @@ export default function WerkorderDetailPage() {
         );
 
         setAssignmentMessage(
-          'Concept succesvol overgedragen.'
+          'Het overdrachtsverzoek is verstuurd.'
         );
       } catch (
         error: unknown

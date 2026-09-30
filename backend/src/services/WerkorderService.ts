@@ -890,30 +890,158 @@ export class WerkorderService {
         null;
     }
 
-    const transferred =
+    const hasPendingRequest =
       await this.werkorderRepo
-        .transferAssigneeWithHistory(
-          id,
+        .hasPendingTransferRequest(id);
 
-          werkorder.assigned_to ??
-            null,
+    if (hasPendingRequest) {
+      throw new Error(
+        'Er staat al een overdrachtsverzoek open voor dit concept.'
+      );
+    }
 
-          previousUserEmail,
+    await this.werkorderRepo
+      .createTransferRequest(
+        id,
+        werkorder.assigned_to ?? null,
+        newUser.id,
+        userId,
+        normalizedReason
+      );
 
-          newUser.id,
+    await this.emailService
+      .sendTransferRequestNotification(
+        newUser.email,
+        String(
+          werkorder.werkorder_id
+        ),
+        previousUserEmail,
+        changedByUser.email,
+        normalizedReason
+      );
 
-          newUser.email,
+  }
 
+  async getPendingTransferRequests(
+    userId: number
+  ) {
+    return this.werkorderRepo
+      .getPendingTransferRequestsForUser(
+        userId
+      );
+  }
+
+  async acceptTransferRequest(
+    requestId: number,
+    userId: number
+  ): Promise<void> {
+    if (
+      !Number.isInteger(requestId) ||
+      requestId <= 0
+    ) {
+      throw new Error(
+        'Ongeldig overdrachtsverzoek.'
+      );
+    }
+
+    const request =
+      await this.werkorderRepo
+        .findPendingTransferRequest(
+          requestId
+        );
+
+    if (!request) {
+      throw new Error(
+        'Het overdrachtsverzoek bestaat niet of is al afgehandeld.'
+      );
+    }
+
+    if (
+      Number(request.to_user_id) !==
+      userId
+    ) {
+      throw new Error(
+        'U mag dit overdrachtsverzoek niet accepteren.'
+      );
+    }
+
+    const accepted =
+      await this.werkorderRepo
+        .acceptTransferRequest(
+          requestId,
+          userId
+        );
+
+    if (!accepted) {
+      throw new Error(
+        'Het overdrachtsverzoek kon niet worden geaccepteerd.'
+      );
+    }
+  }
+
+  async rejectTransferRequest(
+    requestId: number,
+    userId: number,
+    reason: string
+  ): Promise<void> {
+    if (
+      !Number.isInteger(requestId) ||
+      requestId <= 0
+    ) {
+      throw new Error(
+        'Ongeldig overdrachtsverzoek.'
+      );
+    }
+
+    const normalizedReason =
+      reason.trim();
+
+    if (!normalizedReason) {
+      throw new Error(
+        'Een reden voor weigering is verplicht.'
+      );
+    }
+
+    if (
+      normalizedReason.length > 1000
+    ) {
+      throw new Error(
+        'De reden voor weigering is te lang.'
+      );
+    }
+
+    const request =
+      await this.werkorderRepo
+        .findPendingTransferRequest(
+          requestId
+        );
+
+    if (!request) {
+      throw new Error(
+        'Het overdrachtsverzoek bestaat niet of is al afgehandeld.'
+      );
+    }
+
+    if (
+      Number(request.to_user_id) !==
+      userId
+    ) {
+      throw new Error(
+        'U mag dit overdrachtsverzoek niet weigeren.'
+      );
+    }
+
+    const rejected =
+      await this.werkorderRepo
+        .rejectTransferRequest(
+          requestId,
           userId,
-
-          changedByUser.email,
-
           normalizedReason
         );
 
-    if (!transferred) {
+    if (!rejected) {
       throw new Error(
-        'Het concept kon niet worden overgedragen.'
+        'Het overdrachtsverzoek kon niet worden geweigerd.'
       );
     }
   }

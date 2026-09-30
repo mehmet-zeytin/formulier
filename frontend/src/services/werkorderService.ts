@@ -375,3 +375,73 @@ export const getAssignmentHistory =
 
       return response.data;
     };
+
+export interface TransferRequest {
+  id: number;
+  werkorder_id: number;
+  werkorder_nummer: string;
+
+  from_user_id: number | null;
+  from_user_email: string | null;
+
+  to_user_id: number;
+  to_user_email: string;
+
+  requested_by: number;
+  requested_by_email: string;
+
+  reason: string;
+
+  status:
+    | 'pending'
+    | 'accepted'
+    | 'rejected';
+
+  created_at: string;
+}
+
+export const getPendingTransferRequests =
+  async (): Promise<
+    TransferRequest[]
+  > => {
+    const response =
+      await api.get<
+        TransferRequest[]
+      >(
+        '/werkorders/transfer-requests'
+      );
+
+    return response.data;
+  };
+
+export const acceptTransferRequest =
+  async (
+    requestId: number
+  ): Promise<MessageResponse> => {
+    const response =
+      await api.post<
+        MessageResponse
+      >(
+        `/werkorders/transfer-requests/${requestId}/accept`
+      );
+
+    return response.data;
+  };
+
+export const rejectTransferRequest =
+  async (
+    requestId: number,
+    reason: string
+  ): Promise<MessageResponse> => {
+    const response =
+      await api.post<
+        MessageResponse
+      >(
+        `/werkorders/transfer-requests/${requestId}/reject`,
+        {
+          reason
+        }
+      );
+
+    return response.data;
+  };

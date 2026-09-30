@@ -4,7 +4,7 @@ import {
   Routes,
   useParams
 } from 'react-router-dom';
-
+import TransferNotifications from './components/TransferNotifications';
 import FormPage from './pages/FormPage';
 import LoginPage from './pages/LoginPage';
 import WerkordersPage from './pages/WerkordersPage';
@@ -62,7 +62,10 @@ function App() {
         path="/werkorders"
         element={
           <PrivateRoute>
-            <WerkordersPage />
+            <>
+              <TransferNotifications />
+              <WerkordersPage />
+            </>
           </PrivateRoute>
         }
       />

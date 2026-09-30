@@ -96,6 +96,28 @@ router.patch(
   controller.restoreWerkorder
 );
 
+
+router.get(
+  '/transfer-requests',
+  authMiddleware,
+  controller.getPendingTransferRequests
+);
+
+router.post(
+  '/transfer-requests/:requestId/accept',
+  authMiddleware,
+  controller.acceptTransferRequest
+);
+
+router.post(
+  '/transfer-requests/:requestId/reject',
+  authMiddleware,
+  controller.rejectTransferRequest
+);
+
+
+
+
 router.delete(
   '/:id/permanent',
   authMiddleware,

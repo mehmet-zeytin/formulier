@@ -600,6 +600,378 @@ export class WerkorderRepository {
     };
   }
 
+  async hasPendingTransferRequest(
+    werkorderId: number
+  ): Promise<boolean> {
+    const [rows] =
+      await pool.query<RowDataPacket[]>(
+        `
+          SELECT id
+          FROM werkorder_transfer_requests
+          WHERE werkorder_id = ?
+            AND status = 'pending'
+          LIMIT 1
+        `,
+        [werkorderId]
+      );
+
+    return rows.length > 0;
+  }
+
+  async createTransferRequest(
+    werkorderId: number,
+    fromUserId: number | null,
+    toUserId: number,
+    requestedBy: number,
+    reason: string
+  ): Promise<number> {
+    const [result] =
+      await pool.query<ResultSetHeader>(
+        `
+          INSERT INTO werkorder_transfer_requests (
+            werkorder_id,
+            from_user_id,
+            to_user_id,
+            requested_by,
+            reason
+          )
+          VALUES (?, ?, ?, ?, ?)
+        `,
+        [
+          werkorderId,
+          fromUserId,
+          toUserId,
+          requestedBy,
+          reason
+        ]
+      );
+
+    return result.insertId;
+  }
+
+  async getPendingTransferRequestsForUser(
+    userId: number
+  ) {
+    const [rows] =
+      await pool.query<RowDataPacket[]>(
+        `
+          SELECT
+            tr.id,
+            tr.werkorder_id,
+            w.werkorder_id AS werkorder_nummer,
+
+            tr.from_user_id,
+            from_user.email AS from_user_email,
+
+            tr.to_user_id,
+            to_user.email AS to_user_email,
+
+            tr.requested_by,
+            requested_by_user.email AS requested_by_email,
+
+            tr.reason,
+            tr.status,
+            tr.created_at
+
+          FROM werkorder_transfer_requests tr
+
+          INNER JOIN werkorders w
+            ON w.id = tr.werkorder_id
+
+          LEFT JOIN users from_user
+            ON from_user.id = tr.from_user_id
+
+          INNER JOIN users to_user
+            ON to_user.id = tr.to_user_id
+
+          INNER JOIN users requested_by_user
+            ON requested_by_user.id = tr.requested_by
+
+          WHERE tr.to_user_id = ?
+            AND tr.status = 'pending'
+            AND w.is_deleted = FALSE
+            AND w.is_voltooid = FALSE
+
+          ORDER BY tr.created_at DESC
+        `,
+        [userId]
+      );
+
+    return rows;
+  }
+
+  async findPendingTransferRequest(
+    requestId: number
+  ) {
+    const [rows] =
+      await pool.query<RowDataPacket[]>(
+        `
+          SELECT
+            tr.*,
+            w.assigned_to,
+            w.is_voltooid,
+            w.is_deleted,
+
+            from_user.email AS from_user_email,
+            to_user.email AS to_user_email,
+            requested_by_user.email AS requested_by_email
+
+          FROM werkorder_transfer_requests tr
+
+          INNER JOIN werkorders w
+            ON w.id = tr.werkorder_id
+
+          LEFT JOIN users from_user
+            ON from_user.id = tr.from_user_id
+
+          INNER JOIN users to_user
+            ON to_user.id = tr.to_user_id
+
+          INNER JOIN users requested_by_user
+            ON requested_by_user.id = tr.requested_by
+
+          WHERE tr.id = ?
+            AND tr.status = 'pending'
+
+          LIMIT 1
+        `,
+        [requestId]
+      );
+
+    return rows.length > 0
+      ? rows[0]
+      : null;
+  }
+
+
+async acceptTransferRequest(
+  requestId: number,
+  respondingUserId: number
+): Promise<boolean> {
+  const connection =
+    await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [rows] =
+      await connection.query<RowDataPacket[]>(
+        `
+          SELECT
+            tr.id,
+            tr.werkorder_id,
+            tr.from_user_id,
+            tr.to_user_id,
+            tr.requested_by,
+            tr.reason,
+            tr.status,
+
+            w.assigned_to,
+            w.is_voltooid,
+            w.is_deleted,
+
+            from_user.email AS from_user_email,
+            to_user.email AS to_user_email,
+            requested_by_user.email AS requested_by_email
+
+          FROM werkorder_transfer_requests tr
+
+          INNER JOIN werkorders w
+            ON w.id = tr.werkorder_id
+
+          LEFT JOIN users from_user
+            ON from_user.id = tr.from_user_id
+
+          INNER JOIN users to_user
+            ON to_user.id = tr.to_user_id
+
+          INNER JOIN users requested_by_user
+            ON requested_by_user.id = tr.requested_by
+
+          WHERE tr.id = ?
+            AND tr.status = 'pending'
+
+          FOR UPDATE
+        `,
+        [requestId]
+      );
+
+    if (rows.length === 0) {
+      await connection.rollback();
+
+      return false;
+    }
+
+    const request = rows[0];
+
+    if (
+      Number(request.to_user_id) !==
+      respondingUserId
+    ) {
+      await connection.rollback();
+
+      return false;
+    }
+
+    if (
+      Boolean(request.is_voltooid) ||
+      Boolean(request.is_deleted)
+    ) {
+      await connection.rollback();
+
+      return false;
+    }
+
+    const currentAssignedTo =
+      request.assigned_to === null
+        ? null
+        : Number(request.assigned_to);
+
+    const expectedFromUserId =
+      request.from_user_id === null
+        ? null
+        : Number(request.from_user_id);
+
+    if (
+      currentAssignedTo !==
+      expectedFromUserId
+    ) {
+      await connection.rollback();
+
+      return false;
+    }
+
+    const [updateResult] =
+      await connection
+        .query<ResultSetHeader>(
+          `
+            UPDATE werkorders
+
+            SET assigned_to = ?
+
+            WHERE id = ?
+              AND is_voltooid = FALSE
+              AND is_deleted = FALSE
+              AND assigned_to <=> ?
+          `,
+          [
+            Number(request.to_user_id),
+            Number(request.werkorder_id),
+            expectedFromUserId
+          ]
+        );
+
+    if (
+      updateResult.affectedRows === 0
+    ) {
+      await connection.rollback();
+
+      return false;
+    }
+
+    await connection.query(
+      `
+        INSERT INTO werkorder_assignment_history (
+          werkorder_id,
+
+          from_user_id,
+          from_user_email,
+
+          to_user_id,
+          to_user_email,
+
+          changed_by,
+          changed_by_email,
+
+          reason
+        )
+
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        Number(request.werkorder_id),
+
+        expectedFromUserId,
+        request.from_user_email ?? null,
+
+        Number(request.to_user_id),
+        String(request.to_user_email),
+
+        Number(request.requested_by),
+        String(request.requested_by_email),
+
+        String(request.reason)
+      ]
+    );
+
+    const [requestResult] =
+      await connection
+        .query<ResultSetHeader>(
+          `
+            UPDATE werkorder_transfer_requests
+
+            SET
+              status = 'accepted',
+              responded_at = CURRENT_TIMESTAMP
+
+            WHERE id = ?
+              AND status = 'pending'
+          `,
+          [requestId]
+        );
+
+    if (
+      requestResult.affectedRows === 0
+    ) {
+      await connection.rollback();
+
+      return false;
+    }
+
+    await connection.commit();
+
+    return true;
+  } catch (error) {
+    await connection.rollback();
+
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+  async rejectTransferRequest(
+    requestId: number,
+    respondingUserId: number,
+    rejectionReason: string
+  ): Promise<boolean> {
+    const [result] =
+      await pool.query<ResultSetHeader>(
+        `
+          UPDATE werkorder_transfer_requests
+
+          SET
+            status = 'rejected',
+            rejection_reason = ?,
+            responded_at = CURRENT_TIMESTAMP
+
+          WHERE id = ?
+            AND to_user_id = ?
+            AND status = 'pending'
+        `,
+        [
+          rejectionReason,
+          requestId,
+          respondingUserId
+        ]
+      );
+
+    return result.affectedRows > 0;
+  }
+
+
+
+  
   async transferAssigneeWithHistory(
     werkorderId: number,
 
