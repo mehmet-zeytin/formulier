@@ -7,30 +7,20 @@ import type {
 type MateriaalInput =
   Omit<Materiaal, 'werkorder_id'>;
 
-const transporter =
-  nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-
-    port: Number(
-      process.env.SMTP_PORT
-    ),
-
-    secure:
-      process.env.SMTP_SECURE ===
-      'true',
-
-    ...(process.env.SMTP_USER &&
-    process.env.SMTP_PASSWORD
-      ? {
-          auth: {
-            user:
-              process.env.SMTP_USER,
-            pass:
-              process.env.SMTP_PASSWORD,
-          },
-        }
-      : {}),
-  });
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === 'true',
+  ignoreTLS: process.env.SMTP_IGNORE_TLS === 'true',
+  ...(process.env.SMTP_USER && process.env.SMTP_PASSWORD
+    ? {
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASSWORD,
+        },
+      }
+    : {}),
+});
 
 const escapeHtml = (
   value: string
