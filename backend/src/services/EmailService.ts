@@ -136,6 +136,109 @@ export class EmailService {
     }
   }
 
+  async sendWerkorderAssignedNotification(
+    toEmail: string,
+    werkorderNumber: string,
+    werkorderId: number
+  ): Promise<void> {
+    const safeEmail =
+      escapeHtml(toEmail);
+
+    const safeWerkorderNumber =
+      escapeHtml(werkorderNumber);
+
+    const frontendUrl =
+      (
+        process.env.FRONTEND_URL ||
+        ''
+      ).replace(/\/$/, '');
+
+    const werkorderUrl =
+      `${frontendUrl}/werkorders/${werkorderId}`;
+
+    try {
+      await transporter.sendMail({
+        from:
+          `"Samen ICT Werkorders" <${process.env.SMTP_FROM}>`,
+
+        to: toEmail,
+
+        subject:
+          `Werkorder ${werkorderNumber} is aan jou toegewezen`,
+
+        text:
+          `Werkorder ${werkorderNumber} is aan jou toegewezen. Log in op het werkorderformulier om de werkorder te bekijken.`,
+
+        html: `
+          <div
+            style="
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #222;
+            "
+          >
+            <h2>
+              Nieuwe werkorder toegewezen
+            </h2>
+
+            <p>
+              Er is een werkorder aan jou
+              toegewezen.
+            </p>
+
+            <p>
+              <strong>Werkorder:</strong>
+              ${safeWerkorderNumber}
+            </p>
+
+            <p>
+              Je kunt de werkorder bekijken
+              via het werkorderformulier.
+            </p>
+
+            ${
+              frontendUrl
+                ? `
+                  <p>
+                    <a
+                      href="${werkorderUrl}"
+                      style="
+                        display: inline-block;
+                        padding: 10px 16px;
+                        background: #2563eb;
+                        color: white;
+                        text-decoration: none;
+                        border-radius: 6px;
+                      "
+                    >
+                      Werkorder bekijken
+                    </a>
+                  </p>
+                `
+                : ''
+            }
+
+            <p
+              style="
+                margin-top: 24px;
+                font-size: 13px;
+                color: #666;
+              "
+            >
+              Deze e-mail is automatisch
+              verzonden door Samen ICT Werkorders.
+            </p>
+          </div>
+        `,
+      });
+    } catch (error) {
+      console.error(
+        `E-mail voor toegewezen werkorder kon niet worden verzonden naar ${safeEmail}:`,
+        error
+      );
+    }
+  }
+
   async sendTransferRequestNotification(
     toEmail: string,
     werkorderNumber: string,

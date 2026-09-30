@@ -970,7 +970,126 @@ async acceptTransferRequest(
   }
 
 
+  async getAssignmentNotificationData(
+    userId: number,
+    werkorderId: number
+  ): Promise<{
+    email: string;
+    werkorder_nummer: string;
+  } | null> {
+    const [rows] =
+      await pool.query<RowDataPacket[]>(
+        `
+          SELECT
+            u.email,
+            w.werkorder_id AS werkorder_nummer
+          FROM users u
+          INNER JOIN werkorders w
+            ON w.id = ?
+          WHERE u.id = ?
+            AND u.deleted_at IS NULL
+          LIMIT 1
+        `,
+        [
+          werkorderId,
+          userId
+        ]
+      );
 
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return {
+      email: String(
+        rows[0].email
+      ),
+
+      werkorder_nummer: String(
+        rows[0].werkorder_nummer
+      )
+    };
+  }
+
+
+  async createWerkorderNotification(
+    userId: number,
+    werkorderId: number,
+    message: string
+  ): Promise<number> {
+    const [result] =
+      await pool.query<ResultSetHeader>(
+        `
+          INSERT INTO werkorder_notifications (
+            user_id,
+            werkorder_id,
+            type,
+            message
+          )
+          VALUES (?, ?, 'assigned', ?)
+        `,
+        [
+          userId,
+          werkorderId,
+          message
+        ]
+      );
+
+    return result.insertId;
+  }
+
+  async getWerkorderNotificationsForUser(
+    userId: number
+  ): Promise<RowDataPacket[]> {
+    const [rows] =
+      await pool.query<RowDataPacket[]>(
+        `
+          SELECT
+            n.id,
+            n.user_id,
+            n.werkorder_id,
+            n.type,
+            n.message,
+            n.is_read,
+            n.created_at,
+            n.read_at,
+            w.werkorder_id AS werkorder_nummer
+          FROM werkorder_notifications n
+          INNER JOIN werkorders w
+            ON w.id = n.werkorder_id
+          WHERE n.user_id = ?
+            AND n.is_read = 0
+          ORDER BY n.created_at DESC
+        `,
+        [userId]
+      );
+
+    return rows;
+  }
+
+  async markWerkorderNotificationRead(
+    notificationId: number,
+    userId: number
+  ): Promise<boolean> {
+    const [result] =
+      await pool.query<ResultSetHeader>(
+        `
+          UPDATE werkorder_notifications
+          SET
+            is_read = 1,
+            read_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+            AND user_id = ?
+            AND is_read = 0
+        `,
+        [
+          notificationId,
+          userId
+        ]
+      );
+
+    return result.affectedRows > 0;
+  }
   
   async transferAssigneeWithHistory(
     werkorderId: number,

@@ -819,6 +819,105 @@ export class WerkorderController {
     }
   };
 
+
+  getWerkorderNotifications = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
+      const notifications =
+        await this.werkorderService
+          .getWerkorderNotifications(
+            req.user.userId
+          );
+
+      res.status(200).json(
+        notifications
+      );
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Notificaties konden niet worden opgehaald.';
+
+      res.status(500).json({
+        message
+      });
+    }
+  };
+
+  markWerkorderNotificationRead = async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          message:
+            'U moet ingelogd zijn.'
+        });
+
+        return;
+      }
+
+      const notificationId =
+        Number(
+          req.params.notificationId
+        );
+
+      if (
+        !Number.isInteger(
+          notificationId
+        ) ||
+        notificationId <= 0
+      ) {
+        res.status(400).json({
+          message:
+            'Ongeldige notificatie.'
+        });
+
+        return;
+      }
+
+      await this.werkorderService
+        .markWerkorderNotificationRead(
+          notificationId,
+          req.user.userId
+        );
+
+      res.status(200).json({
+        message:
+          'Notificatie gemarkeerd als gelezen.'
+      });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Notificatie kon niet worden bijgewerkt.';
+
+      const status =
+        message ===
+        'Notificatie niet gevonden.'
+          ? 404
+          : 500;
+
+      res.status(status).json({
+        message
+      });
+    }
+  };
+
+
+
   getAssignmentHistory = async (
     req: AuthRequest,
     res: Response

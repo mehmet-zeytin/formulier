@@ -13,6 +13,7 @@ import EditWerkorderPage from './pages/EditWerkorderPage';
 import UsersPage from './pages/UsersPage';
 import PrivateRoute from './components/PrivateRoute';
 import TrashPage from './pages/TrashPage';
+import WerkorderNotifications from './components/WerkorderNotifications';
 
 function LegacyWerkorderDetailRedirect() {
   const { id } =
@@ -63,6 +64,7 @@ function App() {
         element={
           <PrivateRoute>
             <>
+              <WerkorderNotifications />
               <TransferNotifications />
               <WerkordersPage />
             </>

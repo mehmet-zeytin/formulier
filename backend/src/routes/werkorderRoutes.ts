@@ -115,7 +115,17 @@ router.post(
   controller.rejectTransferRequest
 );
 
+router.get(
+  '/notifications',
+  authMiddleware,
+  controller.getWerkorderNotifications
+);
 
+router.post(
+  '/notifications/:notificationId/read',
+  authMiddleware,
+  controller.markWerkorderNotificationRead
+);
 
 
 router.delete(

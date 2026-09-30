@@ -919,8 +919,48 @@ export class WerkorderService {
         changedByUser.email,
         normalizedReason
       );
-
   }
+
+
+  async getWerkorderNotifications(
+    userId: number
+  ) {
+    return this.werkorderRepo
+      .getWerkorderNotificationsForUser(
+        userId
+      );
+  }
+
+  async markWerkorderNotificationRead(
+    notificationId: number,
+    userId: number
+  ): Promise<void> {
+    if (
+      !Number.isInteger(
+        notificationId
+      ) ||
+      notificationId <= 0
+    ) {
+      throw new Error(
+        'Ongeldige notificatie.'
+      );
+    }
+
+    const updated =
+      await this.werkorderRepo
+        .markWerkorderNotificationRead(
+          notificationId,
+          userId
+        );
+
+    if (!updated) {
+      throw new Error(
+        'Notificatie niet gevonden.'
+      );
+    }
+  }
+
+
 
   async getPendingTransferRequests(
     userId: number
@@ -935,15 +975,6 @@ export class WerkorderService {
     requestId: number,
     userId: number
   ): Promise<void> {
-    if (
-      !Number.isInteger(requestId) ||
-      requestId <= 0
-    ) {
-      throw new Error(
-        'Ongeldig overdrachtsverzoek.'
-      );
-    }
-
     const request =
       await this.werkorderRepo
         .findPendingTransferRequest(
@@ -952,31 +983,74 @@ export class WerkorderService {
 
     if (!request) {
       throw new Error(
-        'Het overdrachtsverzoek bestaat niet of is al afgehandeld.'
+        'Het overdrachtsverzoek is niet gevonden.'
       );
     }
 
     if (
-      Number(request.to_user_id) !==
-      userId
+      Number(
+        request.to_user_id
+      ) !== userId
     ) {
       throw new Error(
         'U mag dit overdrachtsverzoek niet accepteren.'
       );
     }
 
-    const accepted =
+    await this.werkorderRepo
+      .acceptTransferRequest(
+        requestId,
+        userId
+      );
+
+    const notificationData =
       await this.werkorderRepo
-        .acceptTransferRequest(
-          requestId,
-          userId
+        .getAssignmentNotificationData(
+          Number(
+            request.to_user_id
+          ),
+          Number(
+            request.werkorder_id
+          )
         );
 
-    if (!accepted) {
-      throw new Error(
-        'Het overdrachtsverzoek kon niet worden geaccepteerd.'
+    if (!notificationData) {
+      console.error(
+        'Gegevens voor toewijzingsnotificatie konden niet worden opgehaald.'
+      );
+
+      return;
+    }
+
+    const message =
+      `Werkorder ${notificationData.werkorder_nummer} is aan jou toegewezen.`;
+
+    try {
+      await this.werkorderRepo
+        .createWerkorderNotification(
+          Number(
+            request.to_user_id
+          ),
+          Number(
+            request.werkorder_id
+          ),
+          message
+        );
+    } catch (error) {
+      console.error(
+        'Werkorder-notificatie kon niet worden aangemaakt:',
+        error
       );
     }
+
+    await this.emailService
+      .sendWerkorderAssignedNotification(
+        notificationData.email,
+        notificationData.werkorder_nummer,
+        Number(
+          request.werkorder_id
+        )
+      );
   }
 
   async rejectTransferRequest(
